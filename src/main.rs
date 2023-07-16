@@ -1,6 +1,10 @@
 #![forbid(unsafe_code)]
+// TODO: Remove
+#![allow(dead_code)]
 
 mod cli;
+mod format;
+mod keyring;
 
 use clap::Parser;
 

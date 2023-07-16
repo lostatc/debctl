@@ -8,7 +8,7 @@ pub struct Cli {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-enum SourceType {
+pub enum SourceType {
     /// A binary package
     Deb,
 
@@ -18,7 +18,7 @@ enum SourceType {
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
-struct KeyArgs {
+pub struct KeyArgs {
     /// The URL of the public signing key to download
     ///
     /// This can be armored or GPG format.
@@ -35,25 +35,25 @@ struct KeyArgs {
 }
 
 #[derive(Args)]
-struct AddNew {
+pub struct AddNew {
     /// A unique name to give the source
-    name: String,
+    pub name: String,
 
     /// The URI of the repository
     #[arg(long)]
-    uri: String,
+    pub uri: String,
 
     /// A human-readable description of the source
     #[arg(short, long)]
-    description: Option<String>,
+    pub description: Option<String>,
 
     /// The repository suites (defaults to current distro version codename)
     #[arg(short, long)]
-    suites: Vec<String>,
+    pub suites: Vec<String>,
 
     /// The repository components
     #[arg(short, long, default_value = "main")]
-    components: Vec<String>,
+    pub components: Vec<String>,
 
     /// The type of source
     #[arg(
@@ -64,61 +64,61 @@ struct AddNew {
         value_enum,
         default_value = "deb"
     )]
-    kind: SourceType,
+    pub kind: SourceType,
 
     #[command(flatten)]
-    key: KeyArgs,
+    pub key: KeyArgs,
 
     /// The keyserver to fetch the public signing key from
     #[arg(long, default_value = "keyserver.ubuntu.com")]
-    keyserver: Option<String>,
+    pub keyserver: Option<String>,
 
     /// The architectures to include
     #[arg(long)]
-    arch: Vec<String>,
+    pub arch: Vec<String>,
 
     /// The languages to include
     #[arg(long)]
-    lang: Vec<String>,
+    pub lang: Vec<String>,
 
     /// The download targets (uncommon)
     #[arg(long)]
-    targets: Vec<String>,
+    pub targets: Vec<String>,
 
     /// Use PDiffs to update old indexes (uncommon)
     #[arg(long)]
-    pdiffs: bool,
+    pub pdiffs: bool,
 
     /// Acquire indexes via a URI constructed from a hashsum (uncommon)
     #[arg(long)]
-    by_hash: bool,
+    pub by_hash: bool,
 
     /// Make this source as disabled
     #[arg(long)]
-    disable: bool,
+    pub disable: bool,
 }
 
 #[derive(Args)]
-struct AddLine {
+pub struct AddLine {
     /// The one-line-style source directive
     line: String,
 }
 
 #[derive(Args)]
-struct AddPpa {
+pub struct AddPpa {
     /// The name of the PPA
     ppa: String,
 }
 
 #[derive(Args)]
-struct Add {
+pub struct Add {
     #[command(subcommand)]
     command: AddCommands,
 }
 
 #[derive(Subcommand)]
 #[allow(clippy::large_enum_variant)]
-enum AddCommands {
+pub enum AddCommands {
     /// Add a source by specifying its parameters
     New(AddNew),
 
@@ -130,7 +130,7 @@ enum AddCommands {
 }
 
 #[derive(Subcommand)]
-enum Commands {
+pub enum Commands {
     /// Add a new repository source
     Add(Add),
 }
