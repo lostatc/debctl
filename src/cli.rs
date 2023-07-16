@@ -26,7 +26,7 @@ pub struct KeyArgs {
     key_url: Option<String>,
 
     /// The fingerprint of the public signing key to fetch from the keyserver
-    #[arg(long)]
+    #[arg(long, value_name = "HASH")]
     fingerprint: Option<String>,
 
     /// Mark this source as trusted, disabling signature verification (dangerous)
@@ -70,7 +70,7 @@ pub struct AddNew {
     pub key: KeyArgs,
 
     /// The keyserver to fetch the public signing key from
-    #[arg(long, default_value = "keyserver.ubuntu.com")]
+    #[arg(long, value_name = "URL", default_value = "keyserver.ubuntu.com")]
     pub keyserver: Option<String>,
 
     /// The architectures to include
@@ -93,14 +93,14 @@ pub struct AddNew {
     #[arg(long)]
     pub by_hash: bool,
 
-    /// Make this source as disabled
+    /// Mark this source as disabled
     #[arg(long)]
     pub disable: bool,
 }
 
 #[derive(Args)]
 pub struct AddLine {
-    /// The one-line-style source directive
+    /// The one-line-style source entry
     line: String,
 }
 
@@ -122,7 +122,14 @@ pub enum AddCommands {
     /// Add a source by specifying its parameters
     New(AddNew),
 
-    /// Add a source by its one-line-style source directive
+    /// Add a source by its one-line-style source entry
+    ///
+    /// This parses the one-line-style entry and converts it to the more modern deb822 format before
+    /// adding it to your repository sources.
+    ///
+    /// An example of a one-line-style source entry:
+    ///
+    /// deb http://deb.debian.org/debian bookworm main
     Line(AddLine),
 
     /// Add a source from a PPA
