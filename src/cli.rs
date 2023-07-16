@@ -35,7 +35,7 @@ struct KeyArgs {
 }
 
 #[derive(Args)]
-struct Add {
+struct AddNew {
     /// A unique name to give the source
     name: String,
 
@@ -98,8 +98,39 @@ struct Add {
     disable: bool,
 }
 
+#[derive(Args)]
+struct AddLine {
+    /// The one-line-style source directive
+    line: String,
+}
+
+#[derive(Args)]
+struct AddPpa {
+    /// The name of the PPA
+    ppa: String,
+}
+
+#[derive(Args)]
+struct Add {
+    #[command(subcommand)]
+    command: AddCommands,
+}
+
+#[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
+enum AddCommands {
+    /// Add a source by specifying its parameters
+    New(AddNew),
+
+    /// Add a source by its one-line-style source directive
+    Line(AddLine),
+
+    /// Add a source from a PPA
+    Ppa(AddPpa),
+}
+
 #[derive(Subcommand)]
 enum Commands {
-    /// Manually add a new repository source
+    /// Add a new repository source
     Add(Add),
 }
