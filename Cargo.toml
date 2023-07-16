@@ -13,3 +13,4 @@ rust-version = "1.71.0"
 [dependencies]
 eyre = "0.6.8"
 color-eyre = "0.6.2"
+clap = { version = "4.3.12", features = ["derive"] }
