@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::process::{Stdio, Command};
+use std::process::{Command, Stdio};
 
 use eyre::{eyre, WrapErr};
 
@@ -19,9 +19,7 @@ pub fn get_keyring_path(source_name: &str) -> PathBuf {
 #[derive(Debug)]
 pub enum RepoKeySource {
     /// Download the key from a URL.
-    Download {
-        url: String,
-    },
+    Download { url: String },
 
     /// Fetch the key from a keyserver.
     Keyserver {
@@ -52,20 +50,36 @@ fn dearmor_key(file: &mut File) -> eyre::Result<File> {
     let mut process = Command::new("gpg")
         .arg("--dearmor")
         .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
         .spawn()?;
 
-    io::copy(file, process.stdin.as_mut().unwrap())?;
+    let mut stdout = process.stdout.take().unwrap();
+    let mut stdin = process.stdin.take().unwrap();
+
+    let handle = std::thread::spawn(move || -> eyre::Result<File> {
+        let mut dearmored_file = tempfile::tempfile()?;
+
+        io::copy(&mut stdout, &mut dearmored_file)?;
+
+        Ok(dearmored_file)
+    });
+
+    io::copy(file, &mut stdin)?;
 
     process.wait()?;
 
-    let mut dearmored_file = tempfile::tempfile()?;
-
-    io::copy(process.stdout.as_mut().unwrap(), &mut dearmored_file)?;
+    let dearmored_file = handle
+        .join()
+        .expect("thread panicked writing stdout to file")?;
 
     Ok(dearmored_file)
 }
 
-fn fetch_key_from_keyserver(key_path: &Path, fingerprint: &str, keyserver: &str) -> eyre::Result<()> {
+fn fetch_key_from_keyserver(
+    key_path: &Path,
+    fingerprint: &str,
+    keyserver: &str,
+) -> eyre::Result<()> {
     Command::new("gpg")
         .arg("--no-default-keyring")
         .arg("--keyring")
@@ -86,8 +100,10 @@ impl RepoKeySource {
         match &self {
             Self::Download { url } => {
                 let mut key_file = download_file(url).wrap_err("failed downloading signing key")?;
+                let key_is_armored = probe_is_key_armored(&mut key_file)
+                    .wrap_err("failed probing if key is armored")?;
 
-                let mut dearmored_key = if probe_is_key_armored(&mut key_file).wrap_err("failed probing if key is armored")? {
+                let mut dearmored_key = if key_is_armored {
                     dearmor_key(&mut key_file).wrap_err("failed dearmoring key")?
                 } else {
                     key_file
@@ -95,11 +111,16 @@ impl RepoKeySource {
 
                 let mut dest_file = File::create(path)?;
 
-                io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
-            },
-            Self::Keyserver { fingerprint, keyserver } => {
-                fetch_key_from_keyserver(path, fingerprint, keyserver).wrap_err("failed fetching key from keyserver")?;
-            },
+                io::copy(&mut dearmored_key, &mut dest_file)
+                    .wrap_err("failed copying key to destination")?;
+            }
+            Self::Keyserver {
+                fingerprint,
+                keyserver,
+            } => {
+                fetch_key_from_keyserver(path, fingerprint, keyserver)
+                    .wrap_err("failed fetching key from keyserver")?;
+            }
         }
 
         Ok(())
