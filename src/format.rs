@@ -7,6 +7,7 @@ use crate::cli::AddNew;
 use crate::cli::SourceType;
 use crate::keyring::get_keyring_path;
 
+/// A Debian repository source.
 #[derive(Debug)]
 pub struct RepoSource {
     name: String,
@@ -32,12 +33,14 @@ fn get_current_codename() -> eyre::Result<String> {
             .arg("--codename")
             .output()
             .wrap_err("failed getting distro version codename")?
-            .stdout
+            .stdout,
     )?)
 }
 
 impl RepoSource {
-    /// Construct an instance from the CLI args.
+    /// Construct an instance from the CLI `args`.
+    ///
+    /// This does not download the signing key.
     pub fn from_cli(args: AddNew) -> eyre::Result<Self> {
         Ok(Self {
             name: args.name.clone(),
