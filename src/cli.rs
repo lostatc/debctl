@@ -22,11 +22,11 @@ pub struct KeyArgs {
     /// The URL of the public signing key to download
     ///
     /// This can be armored or GPG format.
-    #[arg(long, value_name = "URL")]
+    #[arg(short, long, value_name = "URL")]
     pub key_url: Option<String>,
 
     /// The fingerprint of the public signing key to fetch from the keyserver
-    #[arg(long, value_name = "HASH")]
+    #[arg(short, long, value_name = "HASH")]
     pub fingerprint: Option<String>,
 
     /// Mark this source as trusted, disabling signature verification (dangerous)
@@ -83,8 +83,8 @@ pub struct AddNew {
 
     /// Add an additional option to the source file
     ///
-    /// You can use the option name as it appears in either the single-line syntax or the deb822
-    /// syntax.
+    /// Add an option that doesn't have its own flag in this CLI. See the sources.list(5) man page
+    /// for a list of valid options.
     #[arg(long, value_name = "KEY=VALUE")]
     pub option: Vec<String>,
 
