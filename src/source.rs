@@ -87,7 +87,7 @@ impl RepoSource {
         Ok(Self {
             name: args.name.clone(),
             uris: args.uri,
-            description: args.description,
+            description: args.description.description,
             suites: if args.suite.is_empty() {
                 vec![get_current_codename()?]
             } else {
@@ -95,20 +95,20 @@ impl RepoSource {
             },
             components: args.component,
             kinds: args.kind,
-            key: if let Some(url) = args.key.key_url {
+            key: if let Some(url) = args.key.location.key_url {
                 Some(KeyLocation::Download { url })
-            } else if let Some(fingerprint) = args.key.fingerprint {
+            } else if let Some(fingerprint) = args.key.location.fingerprint {
                 Some(KeyLocation::Keyserver {
                     fingerprint,
-                    keyserver: args.keyserver,
+                    keyserver: args.key.keyserver,
                 })
             } else {
                 None
             },
             architectures: args.arch,
             languages: args.lang,
-            enabled: !args.disabled,
-            overwrite: args.overwrite,
+            enabled: !args.disabled.disabled,
+            overwrite: args.overwrite.overwrite,
             extra: args
                 .option
                 .into_iter()

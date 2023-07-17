@@ -29,7 +29,7 @@ impl AsRef<str> for SourceType {
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
-pub struct KeyArgs {
+pub struct KeyLocationArgs {
     /// The URL of the public signing key to download
     ///
     /// This can be armored or GPG format.
@@ -46,6 +46,37 @@ pub struct KeyArgs {
 }
 
 #[derive(Args)]
+pub struct SigningKeyArgs {
+    #[command(flatten)]
+    pub location: KeyLocationArgs,
+
+    /// The keyserver to fetch the public signing key from
+    #[arg(long, value_name = "URL", default_value = "keyserver.ubuntu.com")]
+    pub keyserver: String,
+}
+
+#[derive(Args)]
+pub struct DescriptionArgs {
+    /// A human-readable name for the source
+    #[arg(short, long)]
+    pub description: Option<String>,
+}
+
+#[derive(Args)]
+pub struct DisabledArgs {
+    /// Mark this source as disabled
+    #[arg(long)]
+    pub disabled: bool,
+}
+
+#[derive(Args)]
+pub struct OverwriteArgs {
+    /// Overwrite the source file if it already exists.
+    #[arg(long)]
+    pub overwrite: bool,
+}
+
+#[derive(Args)]
 pub struct AddNew {
     /// A unique name for the source
     pub name: String,
@@ -54,9 +85,8 @@ pub struct AddNew {
     #[arg(long, required = true)]
     pub uri: Vec<String>,
 
-    /// A human-readable name for the source
-    #[arg(short, long)]
-    pub description: Option<String>,
+    #[command(flatten)]
+    pub description: DescriptionArgs,
 
     /// The repository suites (defaults to current distro version codename)
     #[arg(short, long)]
@@ -78,11 +108,7 @@ pub struct AddNew {
     pub kind: Vec<SourceType>,
 
     #[command(flatten)]
-    pub key: KeyArgs,
-
-    /// The keyserver to fetch the public signing key from
-    #[arg(long, value_name = "URL", default_value = "keyserver.ubuntu.com")]
-    pub keyserver: String,
+    pub key: SigningKeyArgs,
 
     /// The architectures to include
     #[arg(long)]
@@ -106,19 +132,29 @@ pub struct AddNew {
     #[arg(long)]
     pub force_literal_options: bool,
 
-    /// Mark this source as disabled
-    #[arg(long)]
-    pub disabled: bool,
+    #[command(flatten)]
+    pub disabled: DisabledArgs,
 
-    /// Overwrite the source file if it already exists.
-    #[arg(long)]
-    pub overwrite: bool,
+    #[command(flatten)]
+    pub overwrite: OverwriteArgs,
 }
 
 #[derive(Args)]
 pub struct AddLine {
     /// The one-line-style source entry
     pub line: String,
+
+    #[command(flatten)]
+    pub description: DescriptionArgs,
+
+    #[command(flatten)]
+    pub key: SigningKeyArgs,
+
+    #[command(flatten)]
+    pub disabled: DisabledArgs,
+
+    #[command(flatten)]
+    pub overwrite: OverwriteArgs,
 }
 
 #[derive(Args)]
@@ -144,9 +180,9 @@ pub enum AddCommands {
     /// This parses the one-line-style entry and converts it to the more modern deb822 format before
     /// adding it to your repository sources.
     ///
-    /// An example of a one-line-style source entry:
+    /// One-line-style source entries typically have this format:
     ///
-    /// deb http://deb.debian.org/debian bookworm main
+    /// deb [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
     Line(AddLine),
 
     /// Add a source from a PPA
