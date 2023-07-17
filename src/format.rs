@@ -15,20 +15,16 @@ impl RepoSource {
 
         let mut known_options = Vec::new();
 
-        if !self.uris.is_empty() {
-            known_options.push((Uris, self.uris.join(" ")));
-        }
-
         if let Some(description) = self.description.clone() {
             known_options.push((RepolibName, description));
         }
 
-        if !self.suites.is_empty() {
-            known_options.push((Suites, self.suites.join(" ")));
+        if !self.enabled {
+            known_options.push((Enabled, String::from("no")));
         }
 
-        if !self.components.is_empty() {
-            known_options.push((Components, self.components.join(" ")));
+        if !self.uris.is_empty() {
+            known_options.push((Uris, self.uris.join(" ")));
         }
 
         if !self.kinds.is_empty() {
@@ -42,6 +38,14 @@ impl RepoSource {
             ));
         }
 
+        if !self.suites.is_empty() {
+            known_options.push((Suites, self.suites.join(" ")));
+        }
+
+        if !self.components.is_empty() {
+            known_options.push((Components, self.components.join(" ")));
+        }
+
         if self.key.is_some() {
             known_options.push((SignedBy, self.key_path().to_string_lossy().to_string()));
         }
@@ -52,10 +56,6 @@ impl RepoSource {
 
         if !self.languages.is_empty() {
             known_options.push((Languages, self.languages.join(" ")));
-        }
-
-        if !self.enabled {
-            known_options.push((Enabled, String::from("no")));
         }
 
         let mut options = known_options

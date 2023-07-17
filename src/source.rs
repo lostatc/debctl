@@ -30,14 +30,14 @@ pub struct RepoSource {
 
 /// Return the current distro version codename.
 fn get_current_codename() -> eyre::Result<String> {
-    Ok(String::from_utf8(
-        Command::new("lsb_release")
-            .arg("--short")
-            .arg("--codename")
-            .output()
-            .wrap_err("failed getting distro version codename")?
-            .stdout,
-    )?)
+    let stdout = Command::new("lsb_release")
+        .arg("--short")
+        .arg("--codename")
+        .output()
+        .wrap_err("failed getting distro version codename")?
+        .stdout;
+
+    Ok(String::from_utf8(stdout)?.trim().to_string())
 }
 
 /// Parse a custom option in `key=value` format.
