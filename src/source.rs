@@ -2,30 +2,62 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
+use clap::ValueEnum;
 use eyre::{bail, WrapErr};
 
 use crate::cli::AddNew;
-use crate::cli::SourceType;
 use crate::error::Error;
 use crate::keyring::KeyLocation;
 use crate::option::KnownSourceOption;
 use crate::option::{OptionPair, SourceOption};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SourceType {
+    /// A binary package
+    Deb,
+
+    /// A source package
+    DebSrc,
+}
+
+impl AsRef<str> for SourceType {
+    fn as_ref(&self) -> &str {
+        use SourceType::*;
+
+        match self {
+            Deb => "deb",
+            DebSrc => "deb-src",
+        }
+    }
+}
+
+impl FromStr for SourceType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use SourceType::*;
+
+        match s {
+            "deb" => Ok(Deb),
+            "deb-src" => Ok(DebSrc),
+            _ => Err(Error::MalformedSingleLineEntry {
+                reason: String::from("The entry must start with `deb` or `deb-src`."),
+            }),
+        }
+    }
+}
 
 /// A repository source.
 #[derive(Debug)]
 pub struct RepoSource {
     pub name: String,
     pub uris: Vec<String>,
-    pub description: Option<String>,
     pub suites: Vec<String>,
     pub components: Vec<String>,
-    pub kinds: Vec<SourceType>,
+    pub types: Vec<SourceType>,
     pub key: Option<KeyLocation>,
-    pub architectures: Vec<String>,
-    pub languages: Vec<String>,
     pub enabled: bool,
-    pub overwrite: bool,
-    pub extra: Vec<OptionPair>,
+    pub options: Vec<OptionPair>,
 }
 
 /// Return the current distro version codename.
@@ -84,17 +116,43 @@ impl RepoSource {
     ///
     /// This does not download the signing key.
     pub fn from_cli(args: AddNew) -> eyre::Result<Self> {
+        let mut options = args
+            .option
+            .into_iter()
+            .map(|option| parse_custom_option(option, args.force_literal_options))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if let Some(description) = args.description.description {
+            options.push((
+                SourceOption::Known(KnownSourceOption::RepolibName),
+                description,
+            ));
+        }
+
+        if !args.arch.is_empty() {
+            options.push((
+                SourceOption::Known(KnownSourceOption::Architectures),
+                args.arch.join(" "),
+            ));
+        }
+
+        if !args.lang.is_empty() {
+            options.push((
+                SourceOption::Known(KnownSourceOption::Languages),
+                args.lang.join(" "),
+            ));
+        }
+
         Ok(Self {
             name: args.name.clone(),
             uris: args.uri,
-            description: args.description.description,
             suites: if args.suite.is_empty() {
                 vec![get_current_codename()?]
             } else {
                 args.suite
             },
             components: args.component,
-            kinds: args.kind,
+            types: args.kind,
             key: if let Some(url) = args.key.location.key_url {
                 Some(KeyLocation::Download { url })
             } else if let Some(fingerprint) = args.key.location.fingerprint {
@@ -105,15 +163,8 @@ impl RepoSource {
             } else {
                 None
             },
-            architectures: args.arch,
-            languages: args.lang,
             enabled: !args.disabled.disabled,
-            overwrite: args.overwrite.overwrite,
-            extra: args
-                .option
-                .into_iter()
-                .map(|option| parse_custom_option(option, args.force_literal_options))
-                .collect::<Result<Vec<_>, _>>()?,
+            options,
         })
     }
 }

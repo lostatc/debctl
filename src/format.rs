@@ -15,10 +15,6 @@ impl RepoSource {
 
         let mut known_options = Vec::new();
 
-        if let Some(description) = self.description.clone() {
-            known_options.push((RepolibName, description));
-        }
-
         if !self.enabled {
             known_options.push((Enabled, String::from("no")));
         }
@@ -27,10 +23,10 @@ impl RepoSource {
             known_options.push((Uris, self.uris.join(" ")));
         }
 
-        if !self.kinds.is_empty() {
+        if !self.types.is_empty() {
             known_options.push((
                 Types,
-                self.kinds
+                self.types
                     .iter()
                     .map(AsRef::as_ref)
                     .collect::<Vec<_>>()
@@ -50,27 +46,19 @@ impl RepoSource {
             known_options.push((SignedBy, self.key_path().to_string_lossy().to_string()));
         }
 
-        if !self.architectures.is_empty() {
-            known_options.push((Architectures, self.architectures.join(" ")));
-        }
-
-        if !self.languages.is_empty() {
-            known_options.push((Languages, self.languages.join(" ")));
-        }
-
         let mut options = known_options
             .into_iter()
             .map(|(key, value)| (SourceOption::Known(key), value))
             .collect::<Vec<_>>();
 
-        options.extend_from_slice(&self.extra);
+        options.extend_from_slice(&self.options);
 
         options
     }
 
     /// Open the repo source file, truncating if the user decided to overwrite.
-    fn open_source_file(&self, path: &Path) -> eyre::Result<File> {
-        if self.overwrite {
+    fn open_source_file(&self, path: &Path, overwrite: bool) -> eyre::Result<File> {
+        if overwrite {
             match File::create(path) {
                 Ok(file) => Ok(file),
                 Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
@@ -95,8 +83,8 @@ impl RepoSource {
     }
 
     /// Write this repo source to a file at `path` in deb822 format.
-    pub fn write(&self, path: &Path) -> eyre::Result<()> {
-        let mut file = self.open_source_file(path)?;
+    pub fn write(&self, path: &Path, overwrite: bool) -> eyre::Result<()> {
+        let mut file = self.open_source_file(path, overwrite)?;
 
         for (key, value) in self.to_options() {
             writeln!(&mut file, "{}: {}", key.into_deb822(), value)?;

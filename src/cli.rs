@@ -1,30 +1,12 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand};
+
+use crate::source::SourceType;
 
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum SourceType {
-    /// A binary package
-    Deb,
-
-    /// A source package
-    DebSrc,
-}
-
-impl AsRef<str> for SourceType {
-    fn as_ref(&self) -> &str {
-        use SourceType::*;
-
-        match self {
-            Deb => "deb",
-            DebSrc => "deb-src",
-        }
-    }
 }
 
 #[derive(Args)]

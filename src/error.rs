@@ -19,4 +19,7 @@ pub enum Error {
 
     #[error("You must run this command as root.")]
     PermissionDenied,
+
+    #[error("This single-line-style entry is malformed.\n\n{reason}")]
+    MalformedSingleLineEntry { reason: String },
 }
