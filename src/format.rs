@@ -68,21 +68,35 @@ impl RepoSource {
         options
     }
 
-    /// Write this repo source to a file at `path` in deb822 format.
-    pub fn write(&self, path: &Path) -> eyre::Result<()> {
-        let mut file = if self.overwrite {
-            File::create(path)?
+    /// Open the repo source file, truncating if the user decided to overwrite.
+    fn open_source_file(&self, path: &Path) -> eyre::Result<File> {
+        if self.overwrite {
+            match File::create(path) {
+                Ok(file) => Ok(file),
+                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                    bail!(Error::PermissionDenied)
+                }
+                Err(err) => bail!(err),
+            }
         } else {
             match OpenOptions::new().create_new(true).write(true).open(path) {
-                Ok(file) => file,
+                Ok(file) => Ok(file),
                 Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
                     bail!(Error::SourceFileAlreadyExists {
                         path: path.to_owned()
                     })
                 }
+                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                    bail!(Error::PermissionDenied)
+                }
                 Err(err) => bail!(err),
             }
-        };
+        }
+    }
+
+    /// Write this repo source to a file at `path` in deb822 format.
+    pub fn write(&self, path: &Path) -> eyre::Result<()> {
+        let mut file = self.open_source_file(path)?;
 
         for (key, value) in self.to_options() {
             writeln!(&mut file, "{}: {}", key.into_deb822(), value)?;

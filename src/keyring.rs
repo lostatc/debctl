@@ -3,7 +3,9 @@ use std::io::{self, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use eyre::{eyre, WrapErr};
+use eyre::{bail, eyre, WrapErr};
+
+use crate::error::Error;
 
 const PGP_ARMOR_HEADER: &[u8] = b"-----BEGIN PGP PUBLIC KEY BLOCK-----";
 
@@ -97,8 +99,10 @@ fn fetch_key_from_keyserver(
 /// The file at `path` is created or truncated. If this key is armored, this dearmors it.
 fn download_key(url: &str, path: &Path) -> eyre::Result<()> {
     let mut key_file = download_file(url).wrap_err("failed downloading signing key")?;
+    dbg!(key_file.metadata()?.len());
     let key_is_armored =
         probe_is_key_armored(&mut key_file).wrap_err("failed probing if key is armored")?;
+    dbg!(key_is_armored);
 
     let mut dearmored_key = if key_is_armored {
         dearmor_key(&mut key_file).wrap_err("failed dearmoring key")?
@@ -106,7 +110,13 @@ fn download_key(url: &str, path: &Path) -> eyre::Result<()> {
         key_file
     };
 
-    let mut dest_file = File::create(path)?;
+    dbg!(dearmored_key.metadata()?.len());
+
+    let mut dest_file = match File::create(path) {
+        Ok(file) => file,
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
+        Err(err) => bail!(err),
+    };
 
     io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
 

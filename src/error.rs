@@ -16,4 +16,7 @@ pub enum Error {
 
     #[error("This source file already exists: {path}")]
     SourceFileAlreadyExists { path: PathBuf },
+
+    #[error("You must run this command as root")]
+    PermissionDenied,
 }
