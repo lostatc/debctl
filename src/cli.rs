@@ -51,7 +51,7 @@ pub struct AddNew {
     pub name: String,
 
     /// The URIs of the repository
-    #[arg(long)]
+    #[arg(long, required = true)]
     pub uri: Vec<String>,
 
     /// A human-readable name for the source
@@ -96,13 +96,13 @@ pub struct AddNew {
     ///
     /// Add an option that doesn't have its own flag in this CLI. See the sources.list(5) man page
     /// for a list of valid options.
-    #[arg(long, value_name = "KEY=VALUE")]
+    #[arg(short, long, value_name = "KEY=VALUE")]
     pub option: Vec<String>,
 
     /// Allow invalid options names with --option
     ///
-    /// Options passed with --option are added to the sources.list file literally, without checking
-    /// if they're valid.
+    /// Options passed with --option are added to the source file literally, without checking if
+    /// they're valid.
     #[arg(long)]
     pub force_literal_options: bool,
 
