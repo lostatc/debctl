@@ -68,6 +68,8 @@ fn dearmor_key(file: &mut File) -> eyre::Result<File> {
 
     io::copy(file, &mut stdin)?;
 
+    drop(stdin);
+
     process.wait()?;
 
     let dearmored_file = handle
