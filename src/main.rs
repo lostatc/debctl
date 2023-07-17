@@ -4,7 +4,9 @@
 
 mod cli;
 mod error;
+mod format;
 mod keyring;
+mod option;
 mod source;
 
 use clap::Parser;

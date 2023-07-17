@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use thiserror::Error;
 
 /// A error type for "expected" errors.
@@ -11,4 +13,7 @@ pub enum Error {
 
     #[error("This option is not in `key=value` format: {option}")]
     MalformedOption { option: String },
+
+    #[error("This source file already exists: {path}")]
+    SourceFileAlreadyExists { path: PathBuf },
 }

@@ -16,6 +16,17 @@ pub enum SourceType {
     DebSrc,
 }
 
+impl AsRef<str> for SourceType {
+    fn as_ref(&self) -> &str {
+        use SourceType::*;
+
+        match self {
+            Deb => "deb",
+            DebSrc => "deb-src",
+        }
+    }
+}
+
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 pub struct KeyArgs {
@@ -39,9 +50,9 @@ pub struct AddNew {
     /// A unique name for the source
     pub name: String,
 
-    /// The URI of the repository
+    /// The URIs of the repository
     #[arg(long)]
-    pub uri: String,
+    pub uri: Vec<String>,
 
     /// A human-readable name for the source
     #[arg(short, long)]
@@ -98,6 +109,10 @@ pub struct AddNew {
     /// Mark this source as disabled
     #[arg(long)]
     pub disabled: bool,
+
+    /// Overwrite the source file if it already exists.
+    #[arg(long)]
+    pub overwrite: bool,
 }
 
 #[derive(Args)]
