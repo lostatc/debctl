@@ -1,13 +1,17 @@
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader, Read, Seek};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use eyre::{bail, eyre, WrapErr};
+use eyre::{bail, WrapErr};
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 use crate::error::Error;
 
-const PGP_ARMOR_HEADER: &[u8] = b"-----BEGIN PGP PUBLIC KEY BLOCK-----";
+/// A regex which matches the first line of an ASCII-armored public PGP key.
+static PGP_ARMOR_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"^\s*-----\s*BEGIN PGP PUBLIC KEY BLOCK\s*-----\s*$"#).unwrap());
 
 /// A location to acquire a public singing key from.
 #[derive(Debug)]
@@ -35,13 +39,12 @@ fn download_file(url: &str) -> eyre::Result<File> {
 ///
 /// This probes the key's contents to determine if it's armored.
 fn probe_is_key_armored(file: &mut impl Read) -> eyre::Result<bool> {
-    let mut buf = vec![0u8; PGP_ARMOR_HEADER.len()];
+    let mut first_line = String::new();
+    let mut reader = BufReader::new(file);
 
-    match file.read_exact(&mut buf) {
-        Ok(_) => Ok(buf == PGP_ARMOR_HEADER),
-        Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
-        Err(err) => Err(eyre!(err)),
-    }
+    reader.read_line(&mut first_line)?;
+
+    Ok(PGP_ARMOR_REGEX.is_match(&first_line))
 }
 
 /// Dearmor the key in `file` and return a new temporary file.
@@ -99,18 +102,20 @@ fn fetch_key_from_keyserver(
 /// The file at `path` is created or truncated. If this key is armored, this dearmors it.
 fn download_key(url: &str, path: &Path) -> eyre::Result<()> {
     let mut key_file = download_file(url).wrap_err("failed downloading signing key")?;
-    dbg!(key_file.metadata()?.len());
+
+    key_file.seek(io::SeekFrom::Start(0))?;
+
     let key_is_armored =
         probe_is_key_armored(&mut key_file).wrap_err("failed probing if key is armored")?;
-    dbg!(key_is_armored);
 
     let mut dearmored_key = if key_is_armored {
+        key_file.seek(io::SeekFrom::Start(0))?;
         dearmor_key(&mut key_file).wrap_err("failed dearmoring key")?
     } else {
         key_file
     };
 
-    dbg!(dearmored_key.metadata()?.len());
+    dearmored_key.seek(io::SeekFrom::Start(0))?;
 
     let mut dest_file = match File::create(path) {
         Ok(file) => file,
