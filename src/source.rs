@@ -15,7 +15,7 @@ pub struct RepoSource {
     description: Option<String>,
     suites: Vec<String>,
     components: Vec<String>,
-    kind: SourceType,
+    kind: Vec<SourceType>,
     key_path: PathBuf,
     architectures: Vec<String>,
     languages: Vec<String>,

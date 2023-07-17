@@ -55,7 +55,7 @@ pub struct AddNew {
     #[arg(short, long, default_value = "main")]
     pub components: Vec<String>,
 
-    /// The type of source
+    /// The source types to include
     #[arg(
         id = "type",
         value_name = "TYPE",
@@ -64,7 +64,7 @@ pub struct AddNew {
         value_enum,
         default_value = "deb"
     )]
-    pub kind: SourceType,
+    pub kind: Vec<SourceType>,
 
     #[command(flatten)]
     pub key: KeyArgs,

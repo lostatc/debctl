@@ -3,8 +3,8 @@
 #![allow(dead_code)]
 
 mod cli;
-mod format;
 mod keyring;
+mod source;
 
 use clap::Parser;
 
