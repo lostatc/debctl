@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 mod cli;
+mod error;
 mod keyring;
 mod source;
 

@@ -1,23 +1,15 @@
 use std::fs::File;
 use std::io::{self, Read};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use eyre::{eyre, WrapErr};
 
-const KEYRING_DIR: &str = "/usr/share/keyrings";
 const PGP_ARMOR_HEADER: &[u8] = b"-----BEGIN PGP PUBLIC KEY BLOCK-----";
 
-/// Return the path of a signing key for a given repository source.
-pub fn get_keyring_path(source_name: &str) -> PathBuf {
-    [KEYRING_DIR, &format!("{source_name}-archive-keyring.gpg")]
-        .iter()
-        .collect()
-}
-
-/// A source to acquire a public singing key from.
+/// A location to acquire a public singing key from.
 #[derive(Debug)]
-pub enum RepoKeySource {
+pub enum KeyLocation {
     /// Download the key from a URL.
     Download { url: String },
 
@@ -121,7 +113,7 @@ fn download_key(url: &str, path: &Path) -> eyre::Result<()> {
     Ok(())
 }
 
-impl RepoKeySource {
+impl KeyLocation {
     /// Download and install the signing key to `path`.
     pub fn install(&self, path: &Path) -> eyre::Result<()> {
         match &self {

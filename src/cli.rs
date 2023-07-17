@@ -23,37 +23,37 @@ pub struct KeyArgs {
     ///
     /// This can be armored or GPG format.
     #[arg(long, value_name = "URL")]
-    key_url: Option<String>,
+    pub key_url: Option<String>,
 
     /// The fingerprint of the public signing key to fetch from the keyserver
     #[arg(long, value_name = "HASH")]
-    fingerprint: Option<String>,
+    pub fingerprint: Option<String>,
 
     /// Mark this source as trusted, disabling signature verification (dangerous)
     #[arg(long)]
-    trusted: bool,
+    pub force_trusted: bool,
 }
 
 #[derive(Args)]
 pub struct AddNew {
-    /// A unique name to give the source
+    /// A unique name for the source
     pub name: String,
 
     /// The URI of the repository
     #[arg(long)]
     pub uri: String,
 
-    /// A human-readable description of the source
+    /// A human-readable name for the source
     #[arg(short, long)]
     pub description: Option<String>,
 
     /// The repository suites (defaults to current distro version codename)
     #[arg(short, long)]
-    pub suites: Vec<String>,
+    pub suite: Vec<String>,
 
     /// The repository components
     #[arg(short, long, default_value = "main")]
-    pub components: Vec<String>,
+    pub component: Vec<String>,
 
     /// The source types to include
     #[arg(
@@ -71,7 +71,7 @@ pub struct AddNew {
 
     /// The keyserver to fetch the public signing key from
     #[arg(long, value_name = "URL", default_value = "keyserver.ubuntu.com")]
-    pub keyserver: Option<String>,
+    pub keyserver: String,
 
     /// The architectures to include
     #[arg(long)]
@@ -81,21 +81,23 @@ pub struct AddNew {
     #[arg(long)]
     pub lang: Vec<String>,
 
-    /// The download targets (uncommon)
-    #[arg(long)]
-    pub targets: Vec<String>,
+    /// Add an additional option to the source file
+    ///
+    /// You can use the option name as it appears in either the single-line syntax or the deb822
+    /// syntax.
+    #[arg(long, value_name = "KEY=VALUE")]
+    pub option: Vec<String>,
 
-    /// Use PDiffs to update old indexes (uncommon)
+    /// Allow invalid options names with --option
+    ///
+    /// Options passed with --option are added to the sources.list file literally, without checking
+    /// if they're valid.
     #[arg(long)]
-    pub pdiffs: bool,
-
-    /// Acquire indexes via a URI constructed from a hashsum (uncommon)
-    #[arg(long)]
-    pub by_hash: bool,
+    pub force_literal_options: bool,
 
     /// Mark this source as disabled
     #[arg(long)]
-    pub disable: bool,
+    pub disabled: bool,
 }
 
 #[derive(Args)]
