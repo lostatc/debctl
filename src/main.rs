@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 mod cli;
+mod command;
 mod error;
 mod format;
 mod keyring;
@@ -16,7 +17,9 @@ use cli::Cli;
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;
 
-    let _cli = Cli::parse();
+    let cli = Cli::parse();
+
+    cli.command.dispatch()?;
 
     Ok(())
 }

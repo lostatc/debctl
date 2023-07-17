@@ -60,7 +60,15 @@ fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<Opti
 }
 
 impl RepoSource {
+    const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
     const KEYRING_DIR: &str = "/usr/share/keyrings";
+
+    /// The path of this sources file.
+    pub fn path(&self) -> PathBuf {
+        [Self::SOURCES_DIR, &format!("{}.sources", self.name)]
+            .iter()
+            .collect()
+    }
 
     /// The path of a signing key for this source.
     pub fn key_path(&self) -> PathBuf {
@@ -107,63 +115,5 @@ impl RepoSource {
                 .map(|option| parse_custom_option(option, args.force_literal_options))
                 .collect::<Result<Vec<_>, _>>()?,
         })
-    }
-
-    pub fn to_options(&self) -> Vec<OptionPair> {
-        use KnownSourceOption::*;
-
-        let mut known_options = Vec::new();
-
-        if !self.uris.is_empty() {
-            known_options.push((Uris, self.uris.join(" ")));
-        }
-
-        if let Some(description) = self.description.clone() {
-            known_options.push((RepolibName, description));
-        }
-
-        if !self.suites.is_empty() {
-            known_options.push((Suites, self.suites.join(" ")));
-        }
-
-        if !self.components.is_empty() {
-            known_options.push((Components, self.components.join(" ")));
-        }
-
-        if !self.kinds.is_empty() {
-            known_options.push((
-                Types,
-                self.kinds
-                    .iter()
-                    .map(AsRef::as_ref)
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            ));
-        }
-
-        if self.key.is_some() {
-            known_options.push((SignedBy, self.key_path().to_string_lossy().to_string()));
-        }
-
-        if !self.architectures.is_empty() {
-            known_options.push((Architectures, self.architectures.join(" ")));
-        }
-
-        if !self.languages.is_empty() {
-            known_options.push((Languages, self.languages.join(" ")));
-        }
-
-        if !self.enabled {
-            known_options.push((Enabled, String::from("no")));
-        }
-
-        let mut options = known_options
-            .into_iter()
-            .map(|(key, value)| (SourceOption::Known(key), value))
-            .collect::<Vec<_>>();
-
-        options.extend_from_slice(&self.extra);
-
-        options
     }
 }

@@ -4,7 +4,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[command(author, version, about)]
 pub struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    pub command: Commands,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -118,19 +118,19 @@ pub struct AddNew {
 #[derive(Args)]
 pub struct AddLine {
     /// The one-line-style source entry
-    line: String,
+    pub line: String,
 }
 
 #[derive(Args)]
 pub struct AddPpa {
     /// The name of the PPA
-    ppa: String,
+    pub ppa: String,
 }
 
 #[derive(Args)]
 pub struct Add {
     #[command(subcommand)]
-    command: AddCommands,
+    pub command: AddCommands,
 }
 
 #[derive(Subcommand)]
