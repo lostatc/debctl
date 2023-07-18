@@ -8,8 +8,7 @@ use eyre::{bail, WrapErr};
 use crate::cli::AddNew;
 use crate::error::Error;
 use crate::keyring::KeyLocation;
-use crate::option::KnownSourceOption;
-use crate::option::{OptionPair, SourceOption};
+use crate::option::{KnownOptionName, OptionMap, OptionName, OptionValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum SourceType {
@@ -20,13 +19,11 @@ pub enum SourceType {
     DebSrc,
 }
 
-impl AsRef<str> for SourceType {
-    fn as_ref(&self) -> &str {
-        use SourceType::*;
-
+impl ToString for SourceType {
+    fn to_string(&self) -> String {
         match self {
-            Deb => "deb",
-            DebSrc => "deb-src",
+            Self::Deb => String::from("deb"),
+            Self::DebSrc => String::from("deb-src"),
         }
     }
 }
@@ -51,13 +48,9 @@ impl FromStr for SourceType {
 #[derive(Debug)]
 pub struct RepoSource {
     pub name: String,
-    pub uris: Vec<String>,
-    pub suites: Vec<String>,
-    pub components: Vec<String>,
-    pub types: Vec<SourceType>,
+    pub options: OptionMap,
     pub key: Option<KeyLocation>,
-    pub enabled: bool,
-    pub options: Vec<OptionPair>,
+    pub overwrite: bool,
 }
 
 /// Return the current distro version codename.
@@ -73,7 +66,10 @@ fn get_current_codename() -> eyre::Result<String> {
 }
 
 /// Parse a custom option in `key=value` format.
-fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<OptionPair> {
+fn parse_custom_option(
+    option: String,
+    force_literal: bool,
+) -> eyre::Result<(OptionName, OptionValue)> {
     let (key, value) = match option.trim().split_once('=') {
         Some(pair) => pair,
         None => bail!(Error::MalformedOption {
@@ -81,37 +77,34 @@ fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<Opti
         }),
     };
 
-    if force_literal {
-        Ok((SourceOption::Custom(key.to_string()), value.to_string()))
+    let option_name = if force_literal {
+        OptionName::Custom(key.to_string())
     } else {
-        Ok((
-            SourceOption::Known(KnownSourceOption::from_str(key)?),
-            value.to_string(),
-        ))
-    }
+        KnownOptionName::from_str(key)?.into()
+    };
+
+    Ok((option_name, OptionValue::String(value.to_string())))
+}
+
+const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
+
+/// The path of a repo source file.
+pub fn source_path(source_name: &str) -> PathBuf {
+    [SOURCES_DIR, &format!("{}.sources", source_name)]
+        .iter()
+        .collect()
+}
+
+const KEYRING_DIR: &str = "/usr/share/keyrings";
+
+/// The path of a signing key for a repo source.
+pub fn key_path(source_name: &str) -> PathBuf {
+    [KEYRING_DIR, &format!("{}-archive-keyring.gpg", source_name)]
+        .iter()
+        .collect()
 }
 
 impl RepoSource {
-    const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
-    const KEYRING_DIR: &str = "/usr/share/keyrings";
-
-    /// The path of this sources file.
-    pub fn path(&self) -> PathBuf {
-        [Self::SOURCES_DIR, &format!("{}.sources", self.name)]
-            .iter()
-            .collect()
-    }
-
-    /// The path of a signing key for this source.
-    pub fn key_path(&self) -> PathBuf {
-        [
-            Self::KEYRING_DIR,
-            &format!("{}-archive-keyring.gpg", self.name),
-        ]
-        .iter()
-        .collect()
-    }
-
     /// Construct an instance from the CLI `args`.
     ///
     /// This does not download the signing key.
@@ -120,51 +113,62 @@ impl RepoSource {
             .option
             .into_iter()
             .map(|option| parse_custom_option(option, args.force_literal_options))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<OptionMap, _>>()?;
 
-        if let Some(description) = args.description.description {
-            options.push((
-                SourceOption::Known(KnownSourceOption::RepolibName),
-                description,
-            ));
-        }
+        options.insert(KnownOptionName::Uris, args.uri);
 
-        if !args.arch.is_empty() {
-            options.push((
-                SourceOption::Known(KnownSourceOption::Architectures),
-                args.arch.join(" "),
-            ));
-        }
+        options.insert(KnownOptionName::Components, args.component);
 
-        if !args.lang.is_empty() {
-            options.push((
-                SourceOption::Known(KnownSourceOption::Languages),
-                args.lang.join(" "),
-            ));
-        }
+        options.insert(KnownOptionName::Architectures, args.arch);
 
-        Ok(Self {
-            name: args.name.clone(),
-            uris: args.uri,
-            suites: if args.suite.is_empty() {
+        options.insert(KnownOptionName::Languages, args.lang);
+
+        options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
+
+        options.insert(
+            KnownOptionName::Suites,
+            if args.suite.is_empty() {
                 vec![get_current_codename()?]
             } else {
                 args.suite
             },
-            components: args.component,
-            types: args.kind,
-            key: if let Some(url) = args.key.location.key_url {
-                Some(KeyLocation::Download { url })
-            } else if let Some(fingerprint) = args.key.location.fingerprint {
-                Some(KeyLocation::Keyserver {
-                    fingerprint,
-                    keyserver: args.key.keyserver,
-                })
-            } else {
-                None
-            },
-            enabled: !args.disabled.disabled,
+        );
+
+        options.insert(
+            KnownOptionName::Types,
+            args.kind
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        );
+
+        if let Some(description) = args.description.description {
+            options.insert(KnownOptionName::RepolibName, description);
+        }
+
+        let key = if let Some(url) = args.key.location.key_url {
+            Some(KeyLocation::Download { url })
+        } else if let Some(fingerprint) = args.key.location.fingerprint {
+            Some(KeyLocation::Keyserver {
+                fingerprint,
+                keyserver: args.key.keyserver,
+            })
+        } else {
+            None
+        };
+
+        if key.is_some() {
+            options.insert(
+                KnownOptionName::SignedBy,
+                key_path(&args.name).to_string_lossy().to_string(),
+            );
+        }
+
+        Ok(Self {
+            name: args.name.clone(),
             options,
+            key,
+            overwrite: args.overwrite.overwrite,
         })
     }
 }

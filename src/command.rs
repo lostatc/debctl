@@ -1,16 +1,14 @@
 use crate::cli::{Add, AddCommands, AddNew, Commands};
-use crate::source::RepoSource;
+use crate::source::{key_path, source_path, RepoSource};
 
 fn add_new(args: AddNew) -> eyre::Result<()> {
-    let overwrite = args.overwrite.overwrite;
-
     let source = RepoSource::from_cli(args)?;
 
     if let Some(key_location) = &source.key {
-        key_location.install(&source.key_path())?;
+        key_location.install(&key_path(&source.name))?;
     }
 
-    source.write(&source.path(), overwrite)?;
+    source.write(&source_path(&source.name))?;
 
     Ok(())
 }

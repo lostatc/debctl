@@ -1,11 +1,12 @@
-use std::borrow::Cow;
-use std::str::FromStr;
+use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
 use crate::error::Error;
 
-/// A valid, known option in a source file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KnownSourceOption {
+/// The name of an option in a source file.
+///
+/// These are the known, valid option names listed in the sources.list(5) man page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KnownOptionName {
     Types,
     Uris,
     Suites,
@@ -27,10 +28,10 @@ pub enum KnownSourceOption {
     RepolibName,
 }
 
-impl KnownSourceOption {
+impl KnownOptionName {
     /// The option name in deb822 syntax.
     pub fn to_deb822(self) -> &'static str {
-        use KnownSourceOption::*;
+        use KnownOptionName::*;
 
         match self {
             Types => "Types",
@@ -56,11 +57,11 @@ impl KnownSourceOption {
     }
 }
 
-impl FromStr for KnownSourceOption {
+impl FromStr for KnownOptionName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use KnownSourceOption::*;
+        use KnownOptionName::*;
 
         // We accept option names as they appear in either the single-line syntax or the deb822
         // syntax, without regard for case.
@@ -90,27 +91,105 @@ impl FromStr for KnownSourceOption {
     }
 }
 
-/// An option in a source file.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SourceOption {
-    /// An option which is known to be valid.
-    Known(KnownSourceOption),
+/// The name of an option in a source file.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum OptionName {
+    /// An option name listed in sources.list(5).
+    Known(KnownOptionName),
 
-    /// A custom option provided by the user.
+    /// A custom option name provided by the user.
     Custom(String),
 }
 
-impl SourceOption {
+impl OptionName {
     /// The option name in deb822 syntax.
-    pub fn into_deb822(self) -> Cow<'static, str> {
-        use SourceOption::*;
+    pub fn to_deb822(&self) -> &str {
+        use OptionName::*;
 
         match self {
-            Known(option) => Cow::Borrowed(option.to_deb822()),
-            Custom(option) => Cow::Owned(option),
+            Known(option) => option.to_deb822(),
+            Custom(option) => option,
         }
     }
 }
 
-/// An option in a source file and its value.
-pub type OptionPair = (SourceOption, String);
+impl From<KnownOptionName> for OptionName {
+    fn from(value: KnownOptionName) -> Self {
+        Self::Known(value)
+    }
+}
+
+/// The value of an option in a source file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptionValue {
+    String(String),
+    List(Vec<String>),
+    Bool(bool),
+}
+
+impl From<String> for OptionValue {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<Vec<String>> for OptionValue {
+    fn from(value: Vec<String>) -> Self {
+        Self::List(value)
+    }
+}
+
+impl From<bool> for OptionValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl OptionValue {
+    /// The option value in deb822 syntax.
+    pub fn to_deb822(&self) -> Cow<'_, str> {
+        match self {
+            Self::String(value) => Cow::Borrowed(value),
+            Self::List(value) => Cow::Owned(value.join(" ")),
+            Self::Bool(true) => Cow::Borrowed("yes"),
+            Self::Bool(false) => Cow::Borrowed("no"),
+        }
+    }
+}
+
+/// A map of option names and their values.
+#[derive(Debug)]
+pub struct OptionMap(HashMap<OptionName, OptionValue>);
+
+impl OptionMap {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+
+    /// Insert a new option into the map.
+    ///
+    /// If the option value is an empty string or an empty vector, then it is skipped.
+    pub fn insert(&mut self, name: impl Into<OptionName>, value: impl Into<OptionValue>) {
+        let option_name = name.into();
+        let option_value = value.into();
+
+        match option_value {
+            OptionValue::List(list_value) if list_value.is_empty() => return,
+            OptionValue::String(str_value) if str_value.is_empty() => return,
+            _ => {}
+        }
+
+        self.0.insert(option_name, option_value);
+    }
+
+    /// Iterate over the key-value pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (&OptionName, &OptionValue)> {
+        self.0.iter()
+    }
+}
+
+impl FromIterator<(OptionName, OptionValue)> for OptionMap {
+    fn from_iter<T: IntoIterator<Item = (OptionName, OptionValue)>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
