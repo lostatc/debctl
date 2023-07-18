@@ -35,7 +35,7 @@ impl RepoSource {
     }
 
     /// Write this repo source to a file at `path` in deb822 format.
-    pub fn write(&self, path: &Path) -> eyre::Result<()> {
+    pub fn install(&self, path: &Path) -> eyre::Result<()> {
         let mut file = self.open_source_file(path)?;
 
         for (key, value) in self.options.iter() {

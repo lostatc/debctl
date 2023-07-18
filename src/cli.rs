@@ -104,6 +104,8 @@ pub struct AddNew {
     ///
     /// Add an option that doesn't have its own flag in this CLI. See the sources.list(5) man page
     /// for a list of valid options.
+    ///
+    /// Options take the form `key=value`, or `key=value1,value2` to pass multiple values.
     #[arg(short, long, value_name = "KEY=VALUE")]
     pub option: Vec<String>,
 

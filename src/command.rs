@@ -8,7 +8,7 @@ fn add_new(args: AddNew) -> eyre::Result<()> {
         key_location.install(&key_path(&source.name))?;
     }
 
-    source.write(&source_path(&source.name))?;
+    source.install(&source_path(&source.name))?;
 
     Ok(())
 }

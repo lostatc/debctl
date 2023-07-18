@@ -83,7 +83,19 @@ fn parse_custom_option(
         KnownOptionName::from_str(key)?.into()
     };
 
-    Ok((option_name, OptionValue::String(value.to_string())))
+    let lowercase_value = value.to_lowercase();
+
+    let option_value = if lowercase_value == "yes" {
+        OptionValue::Bool(true)
+    } else if lowercase_value == "no" {
+        OptionValue::Bool(false)
+    } else if value.contains(',') {
+        OptionValue::List(value.split(',').map(ToString::to_string).collect())
+    } else {
+        OptionValue::String(value.to_string())
+    };
+
+    Ok((option_name, option_value))
 }
 
 const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
