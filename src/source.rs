@@ -8,7 +8,7 @@ use eyre::{bail, WrapErr};
 use crate::cli::{AddLine, AddNew, SigningKeyArgs};
 use crate::error::Error;
 use crate::keyring::KeyLocation;
-use crate::option::{KnownOptionName, OptionMap, OptionName, OptionValue};
+use crate::option::{KnownOptionName, OptionMap, OptionName, OptionPair, OptionValue};
 use crate::parse::parse_line_entry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -67,10 +67,7 @@ fn get_current_codename() -> eyre::Result<String> {
 }
 
 /// Parse a custom option in `key=value` format.
-fn parse_custom_option(
-    option: String,
-    force_literal: bool,
-) -> eyre::Result<(OptionName, OptionValue)> {
+fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<OptionPair> {
     let (key, value) = match option.trim().split_once('=') {
         Some(pair) => pair,
         None => bail!(Error::MalformedOption {

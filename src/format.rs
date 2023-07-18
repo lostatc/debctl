@@ -38,7 +38,7 @@ impl RepoSource {
     pub fn install(&self, path: &Path) -> eyre::Result<()> {
         let mut file = self.open_source_file(path)?;
 
-        for (key, value) in self.options.iter() {
+        for (key, value) in self.options.options() {
             writeln!(&mut file, "{}: {}", key.to_deb822(), value.to_deb822())?;
         }
 
