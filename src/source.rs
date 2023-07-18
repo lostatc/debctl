@@ -127,7 +127,23 @@ impl RepoSource {
             .map(|option| parse_custom_option(option, args.force_literal_options))
             .collect::<Result<OptionMap, _>>()?;
 
+        let suites = if args.suite.is_empty() {
+            vec![get_current_codename()?]
+        } else {
+            args.suite
+        };
+
+        let types = args
+            .kind
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+
         options.insert(KnownOptionName::Uris, args.uri);
+
+        options.insert(KnownOptionName::Suites, suites);
+
+        options.insert(KnownOptionName::Types, types);
 
         options.insert(KnownOptionName::Components, args.component);
 
@@ -136,23 +152,6 @@ impl RepoSource {
         options.insert(KnownOptionName::Languages, args.lang);
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
-
-        options.insert(
-            KnownOptionName::Suites,
-            if args.suite.is_empty() {
-                vec![get_current_codename()?]
-            } else {
-                args.suite
-            },
-        );
-
-        options.insert(
-            KnownOptionName::Types,
-            args.kind
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>(),
-        );
 
         if let Some(description) = args.description.description {
             options.insert(KnownOptionName::RepolibName, description);
