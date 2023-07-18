@@ -30,7 +30,7 @@ impl Commands {
         match self {
             Commands::Add(Add { command }) => match command {
                 AddCommands::New(args) => add_new(args),
-                AddCommands::Line(_) => todo!(),
+                AddCommands::Line(args) => add_line(args),
                 AddCommands::Ppa(_) => todo!(),
             },
         }

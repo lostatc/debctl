@@ -17,8 +17,7 @@ fn parse_option_name(option_name: &str) -> eyre::Result<KnownOptionName> {
         Err(_) => bail!(Error::MalformedSingleLineEntry {
             reason: format!(
                 "\
-                This is not a valid option name: `{option_name}`
-
+                This is not a valid option name: `{option_name}`.\n\n\
                 See the sources.list(5) man page for a list of valid options.
                 "
             ),
@@ -40,7 +39,7 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     for rule in line.into_inner() {
         match rule.as_rule() {
             Rule::source_type => {
-                let source_type = rule.to_string();
+                let source_type = rule.as_str().to_string();
 
                 option_map.insert(KnownOptionName::Types, source_type);
             }
@@ -73,7 +72,8 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
             Rule::param => {
                 params.push(rule.as_str());
             }
-            _ => unreachable!(),
+            Rule::EOI => {}
+            _ => unreachable!("unexpected parsing rule: {:?}", rule.as_rule()),
         }
     }
 
@@ -87,7 +87,7 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
         option_map.insert(KnownOptionName::Suites, suite.to_string());
         option_map.insert(KnownOptionName::Components, components);
     } else {
-        unreachable!()
+        unreachable!("failed parsing uri, suite, and components")
     }
 
     Ok(option_map)

@@ -184,7 +184,8 @@ impl RepoSource {
     }
 
     pub fn from_add_line_args(args: AddLine) -> eyre::Result<Self> {
-        let mut options = parse_line_entry(&args.line)?;
+        let mut options = parse_line_entry(&args.line)
+            .wrap_err("failed parsing single-line-style source entry")?;
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
