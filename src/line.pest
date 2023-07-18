@@ -1,0 +1,19 @@
+WHITESPACE = _{ " " }
+
+COMMENT = _{ "#" ~ ANY* ~ EOI }
+
+source_type = { "deb-src" | "deb" }
+
+option_name = @{ ASCII_ALPHANUMERIC ~ ("-"* ~ ASCII_ALPHANUMERIC)* }
+
+option_value = @{ !("," | "]" | WHITESPACE) ~ ANY }
+
+value_list = @{ option_value ~ ("," ~ option_value)* }
+
+option = @{ option_name ~ "=" ~ value_list }
+
+option_list = { "[" ~ option ~ (WHITESPACE ~ option)* ~ "]" }
+
+param = @{ (!WHITESPACE ~ ANY)+ }
+
+line = @{ SOI ~ WHITESPACE* ~ source_type ~ WHITESPACE+ ~ option_list? ~ (WHITESPACE+ ~ param){2, } ~ WHITESPACE* ~ EOI }
