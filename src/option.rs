@@ -2,6 +2,9 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+
 use crate::error::Error;
 use crate::keyring::KeyLocation;
 use crate::source::key_path;
@@ -9,7 +12,10 @@ use crate::source::key_path;
 /// The name of an option in a source file.
 ///
 /// These are the known, valid option names listed in the sources.list(5) man page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+///
+/// The order of the variants in this enum corresponds to the order the options will appear in
+/// source files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, EnumIter)]
 pub enum KnownOptionName {
     RepolibName,
     Enabled,
@@ -33,35 +39,6 @@ pub enum KnownOptionName {
 }
 
 impl KnownOptionName {
-    /// Return a slice of all known options in their canonical order.
-    ///
-    /// We use this to ensure options are added to the source file in a consistent order.
-    pub const fn all() -> &'static [KnownOptionName] {
-        use KnownOptionName::*;
-
-        &[
-            RepolibName,
-            Enabled,
-            Types,
-            Uris,
-            Suites,
-            Components,
-            SignedBy,
-            Trusted,
-            Architectures,
-            Languages,
-            Targets,
-            PDiffs,
-            ByHash,
-            AllowInsecure,
-            AllowWeak,
-            AllowDowngradeToInsecure,
-            CheckValidUntil,
-            ValidUntilMin,
-            ValidUntilMax,
-        ]
-    }
-
     /// The option name in deb822 syntax.
     pub const fn to_deb822(self) -> &'static str {
         use KnownOptionName::*;
@@ -259,7 +236,7 @@ impl OptionMap {
 
         let mut all_options = Vec::with_capacity(self.0.len());
 
-        for known_name in KnownOptionName::all() {
+        for known_name in KnownOptionName::iter() {
             if let Some((key, value)) = self.0.get_key_value(&known_name.into()) {
                 all_options.push((key, value));
             }
