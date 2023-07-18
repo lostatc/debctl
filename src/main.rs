@@ -8,6 +8,7 @@ mod error;
 mod format;
 mod keyring;
 mod option;
+mod parse;
 mod source;
 
 use std::process::ExitCode;
