@@ -5,10 +5,11 @@ use std::str::FromStr;
 use clap::ValueEnum;
 use eyre::{bail, WrapErr};
 
-use crate::cli::AddNew;
+use crate::cli::{AddLine, AddNew, SigningKeyArgs};
 use crate::error::Error;
 use crate::keyring::KeyLocation;
 use crate::option::{KnownOptionName, OptionMap, OptionName, OptionValue};
+use crate::parse::parse_line_entry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum SourceType {
@@ -116,11 +117,24 @@ pub fn key_path(source_name: &str) -> PathBuf {
         .collect()
 }
 
+fn parse_key_args(args: SigningKeyArgs) -> Option<KeyLocation> {
+    if let Some(url) = args.location.key_url {
+        Some(KeyLocation::Download { url })
+    } else if let Some(fingerprint) = args.location.fingerprint {
+        Some(KeyLocation::Keyserver {
+            fingerprint,
+            keyserver: args.keyserver,
+        })
+    } else {
+        None
+    }
+}
+
 impl RepoSource {
     /// Construct an instance from the CLI `args`.
     ///
     /// This does not download the signing key.
-    pub fn from_cli(args: AddNew) -> eyre::Result<Self> {
+    pub fn from_add_new_args(args: AddNew) -> eyre::Result<Self> {
         let mut options = args
             .option
             .into_iter()
@@ -157,23 +171,30 @@ impl RepoSource {
             options.insert(KnownOptionName::RepolibName, description);
         }
 
-        let key = if let Some(url) = args.key.location.key_url {
-            Some(KeyLocation::Download { url })
-        } else if let Some(fingerprint) = args.key.location.fingerprint {
-            Some(KeyLocation::Keyserver {
-                fingerprint,
-                keyserver: args.key.keyserver,
-            })
-        } else {
-            None
-        };
+        let key = parse_key_args(args.key);
 
-        if key.is_some() {
-            options.insert(
-                KnownOptionName::SignedBy,
-                key_path(&args.name).to_string_lossy().to_string(),
-            );
+        options.insert_key(&args.name, &key);
+
+        Ok(Self {
+            name: args.name.clone(),
+            options,
+            key,
+            overwrite: args.overwrite.overwrite,
+        })
+    }
+
+    pub fn from_add_line_args(args: AddLine) -> eyre::Result<Self> {
+        let mut options = parse_line_entry(&args.line)?;
+
+        options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
+
+        if let Some(description) = args.description.description {
+            options.insert(KnownOptionName::RepolibName, description);
         }
+
+        let key = parse_key_args(args.key);
+
+        options.insert_key(&args.name, &key);
 
         Ok(Self {
             name: args.name.clone(),

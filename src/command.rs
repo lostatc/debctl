@@ -1,8 +1,20 @@
-use crate::cli::{Add, AddCommands, AddNew, Commands};
+use crate::cli::{Add, AddCommands, AddLine, AddNew, Commands};
 use crate::source::{key_path, source_path, RepoSource};
 
 fn add_new(args: AddNew) -> eyre::Result<()> {
-    let source = RepoSource::from_cli(args)?;
+    let source = RepoSource::from_add_new_args(args)?;
+
+    if let Some(key_location) = &source.key {
+        key_location.install(&key_path(&source.name))?;
+    }
+
+    source.install(&source_path(&source.name))?;
+
+    Ok(())
+}
+
+fn add_line(args: AddLine) -> eyre::Result<()> {
+    let source = RepoSource::from_add_line_args(args)?;
 
     if let Some(key_location) = &source.key {
         key_location.install(&key_path(&source.name))?;

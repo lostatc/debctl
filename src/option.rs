@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
-use crate::error::Error;
+use crate::{error::Error, keyring::KeyLocation, source::key_path};
 
 /// The name of an option in a source file.
 ///
@@ -180,6 +180,16 @@ impl OptionMap {
         }
 
         self.0.insert(option_name, option_value);
+    }
+
+    /// Insert the location of the signing key as an option.
+    pub fn insert_key(&mut self, name: &str, key: &Option<KeyLocation>) {
+        if key.is_some() {
+            self.insert(
+                KnownOptionName::SignedBy,
+                key_path(name).to_string_lossy().to_string(),
+            );
+        }
     }
 
     /// Iterate over the key-value pairs.

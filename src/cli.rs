@@ -128,6 +128,10 @@ pub struct AddLine {
     /// The one-line-style source entry
     pub line: String,
 
+    /// A unique name for the source
+    #[arg(short, long)]
+    pub name: String,
+
     #[command(flatten)]
     pub description: DescriptionArgs,
 
