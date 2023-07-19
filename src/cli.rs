@@ -43,6 +43,10 @@ pub struct SigningKeyArgs {
     /// The directory to install the repository signing key to
     #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
     pub keyring_dir: String,
+
+    /// Inline the repository signing key into the source file
+    #[arg(long)]
+    pub inline_key: bool,
 }
 
 #[derive(Args)]

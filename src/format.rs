@@ -10,7 +10,7 @@ use crate::source::RepoSource;
 impl RepoSource {
     /// Open the repo source file, truncating if the user decided to overwrite.
     fn open_source_file(&self, path: &Path) -> eyre::Result<File> {
-        if self.overwrite {
+        if self.overwrite() {
             match File::create(path) {
                 Ok(file) => Ok(file),
                 Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
@@ -34,11 +34,11 @@ impl RepoSource {
         }
     }
 
-    /// Write this repo source to a file at `path` in deb822 format.
-    pub fn install(&self, path: &Path) -> eyre::Result<()> {
-        let mut file = self.open_source_file(path)?;
+    /// Install this repo source as a file in deb822 format.
+    pub fn install(&self) -> eyre::Result<()> {
+        let mut file = self.open_source_file(&self.path())?;
 
-        for (key, value) in self.options.options() {
+        for (key, value) in self.options().options() {
             writeln!(&mut file, "{}: {}", key.to_deb822(), value.to_deb822())?;
         }
 

@@ -3,12 +3,13 @@ use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use eyre::{bail, WrapErr};
+use eyre::{bail, eyre, WrapErr};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::Url;
 
 use crate::error::Error;
+use crate::option::OptionValue;
 
 /// A regex which matches the first line of an ASCII-armored public PGP key.
 static PGP_ARMOR_REGEX: Lazy<Regex> =
@@ -80,7 +81,8 @@ fn encode_key(file: &mut File, action: KeyEncoding) -> eyre::Result<File> {
         })
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn()?;
+        .spawn()
+        .wrap_err("failed to execute gpg command")?;
 
     let mut stdout = process.stdout.take().unwrap();
     let mut stdin = process.stdin.take().unwrap();
@@ -149,42 +151,18 @@ fn ensure_dir_exists(keyring_dir: &Path) -> eyre::Result<()> {
     }
 }
 
-/// Install the key at `url` to `dest`.
-///
-/// The file at `dest` is created or truncated. If this key is armored, this dearmors it.
-fn download_key(url: &str, dest: &Path) -> eyre::Result<()> {
-    let src_file = download_file(url).wrap_err("failed downloading signing key")?;
+/// Download a singing key from a keyserver and return it.
+fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str) -> eyre::Result<File> {
+    // This file will be the temporary keyring we will store the key in when we initially fetch it
+    // from the keyserver. This is important because GPG doesn't allow us to read the key directly
+    // to stdout; we must store it in a keyring.
+    let temp_keyring =
+        tempfile::NamedTempFile::new().wrap_err("failed creating temporary keyring file")?;
 
-    let mut dearmored_key = change_key_encoding(src_file, KeyEncoding::Binary)?;
-
-    let mut dest_file = open_key_destination(dest)?;
-
-    io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
-
-    Ok(())
-}
-
-/// Install the key at `key` to `dest`.
-///
-/// The file at `dest` is created or truncated. If this key is armored, this dearmors it.
-fn install_local_key(key: &Path, dest: &Path) -> eyre::Result<()> {
-    let src_file = File::open(key).wrap_err("failed opening local key file for reading")?;
-
-    let mut dearmored_key = change_key_encoding(src_file, KeyEncoding::Binary)?;
-
-    let mut dest_file = open_key_destination(dest)?;
-
-    io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
-
-    Ok(())
-}
-
-/// Download a singing key from a keyserver to `key_path`.
-fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str, dest: &Path) -> eyre::Result<()> {
-    let output = Command::new("gpg")
+    let recv_cmd_output = Command::new("gpg")
         .arg("--no-default-keyring")
         .arg("--keyring")
-        .arg(dest.as_os_str())
+        .arg(temp_keyring.path().as_os_str())
         .arg("--keyserver")
         .arg(keyserver)
         .arg("--recv-keys")
@@ -192,35 +170,108 @@ fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str, dest: &Path) -> 
         .output()
         .wrap_err("failed to execute gpg command")?;
 
-    if !output.status.success() {
+    if !recv_cmd_output.status.success() {
         bail!(Error::KeyserverFetchFailed {
             fingerprint: fingerprint.to_string(),
-            reason: String::from_utf8(output.stderr)
+            reason: String::from_utf8(recv_cmd_output.stderr)
                 .wrap_err("failed to decode gpg command stderr")?,
         });
     }
 
-    Ok(())
+    let mut export_cmd_process = Command::new("gpg")
+        .arg("--no-default-keyring")
+        .arg("--keyring")
+        .arg(temp_keyring.path().as_os_str())
+        .arg("--export")
+        .arg(fingerprint)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .wrap_err("failed to execute gpg command")?;
+
+    let mut stdout = export_cmd_process.stdout.take().unwrap();
+    let mut stderr = export_cmd_process.stderr.take().unwrap();
+
+    let stdout_handle = std::thread::spawn(move || -> eyre::Result<File> {
+        let mut key_file = tempfile::tempfile()?;
+
+        io::copy(&mut stdout, &mut key_file).wrap_err("filed reading stdout")?;
+
+        Ok(key_file)
+    });
+
+    let stderr_handle = std::thread::spawn(move || -> eyre::Result<String> {
+        let mut stderr_msg = String::new();
+
+        stderr
+            .read_to_string(&mut stderr_msg)
+            .wrap_err("failed reading stderr")?;
+
+        Ok(stderr_msg)
+    });
+
+    let status = export_cmd_process.wait()?;
+
+    let key_file = stdout_handle
+        .join()
+        .expect("thread panicked writing stdout to file")?;
+    let err_msg = stderr_handle
+        .join()
+        .expect("thread panicked reading stderr")?;
+
+    if !status.success() {
+        return Err(eyre!(err_msg).wrap_err("failed to export key from temporary keyring"));
+    }
+
+    Ok(key_file)
 }
 
 impl KeyLocation {
-    /// Download and install the signing key to `path`.
+    /// Get the signing key at this location.
+    fn get_key(&self) -> eyre::Result<File> {
+        match self {
+            Self::Download { url } => {
+                // download_key(url.as_str(), dest).wrap_err("failed downloading signing key")
+                download_file(url.as_str()).wrap_err("failed downloading signing key")
+            }
+            Self::File { path } => {
+                // install_local_key(src, dest).wrap_err("failed installing signing key from local path")},
+                File::open(path).wrap_err("failed opening local key file for reading")
+            }
+            Self::Keyserver {
+                fingerprint,
+                keyserver,
+            } => fetch_key_from_keyserver(fingerprint, keyserver)
+                .wrap_err("failed fetching signing key from keyserver"),
+        }
+    }
+
+    /// Install the signing key at this location to `dest`.
     pub fn install(&self, dest: &Path) -> eyre::Result<()> {
         if let Some(keyring_dir) = dest.parent() {
             ensure_dir_exists(keyring_dir).wrap_err("failed creating keyring directory")?;
         }
 
-        match &self {
-            Self::Download { url } => {
-                download_key(url.as_str(), dest).wrap_err("failed downloading signing key")
-            }
-            Self::File { path: src } => install_local_key(src, dest)
-                .wrap_err("failed installing signing key from local path"),
-            Self::Keyserver {
-                fingerprint,
-                keyserver,
-            } => fetch_key_from_keyserver(fingerprint, keyserver, dest)
-                .wrap_err("failed fetching signing key from keyserver"),
-        }
+        let key_file = self.get_key().wrap_err("failed getting signing key")?;
+
+        let mut dearmored_key = change_key_encoding(key_file, KeyEncoding::Binary)?;
+
+        let mut dest_file = open_key_destination(dest)?;
+
+        io::copy(&mut dearmored_key, &mut dest_file)
+            .wrap_err("failed copying key to destination")?;
+
+        Ok(())
+    }
+
+    /// Get the key at this location as an option value.
+    pub fn to_value(&self) -> eyre::Result<OptionValue> {
+        let key_file = self.get_key().wrap_err("failed getting signing key")?;
+
+        Ok(OptionValue::Multiline(
+            BufReader::new(key_file)
+                .lines()
+                .collect::<Result<Vec<_>, _>>()?,
+        ))
     }
 }

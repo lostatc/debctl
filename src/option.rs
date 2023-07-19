@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::path::Path;
 use std::str::FromStr;
 
 use eyre::bail;
@@ -8,7 +7,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::error::Error;
-use crate::source::{key_path, SourceType};
+use crate::source::{SigningKey, SourceType};
 
 /// The name of an option in a source file.
 ///
@@ -164,6 +163,7 @@ pub enum OptionValue {
     String(String),
     List(Vec<String>),
     Bool(bool),
+    Multiline(Vec<String>),
 }
 
 impl From<String> for OptionValue {
@@ -220,6 +220,18 @@ impl From<bool> for OptionValue {
 }
 
 impl OptionValue {
+    /// Return whether this value is "empty".
+    ///
+    /// Empty values are not included in the source file.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            OptionValue::String(value) => value.trim().is_empty(),
+            OptionValue::List(list) => list.is_empty(),
+            OptionValue::Bool(_) => false,
+            OptionValue::Multiline(list) => list.is_empty(),
+        }
+    }
+
     /// The option value in deb822 syntax.
     pub fn to_deb822(&self) -> Cow<'_, str> {
         match self {
@@ -227,6 +239,28 @@ impl OptionValue {
             Self::List(value) => Cow::Owned(value.join(" ")),
             Self::Bool(true) => Cow::Borrowed("yes"),
             Self::Bool(false) => Cow::Borrowed("no"),
+            Self::Multiline(lines) => {
+                let mut output = String::new();
+
+                // The first line should be blank.
+                output.push('\n');
+
+                for line in lines {
+                    // Continuation lines for multiline strings start with a space.
+                    output.push(' ');
+
+                    if line.trim().is_empty() {
+                        // Blank lines are escaped with a dot.
+                        output.push('.');
+                    } else {
+                        output.push_str(line);
+                    }
+
+                    output.push('\n');
+                }
+
+                Cow::Owned(output)
+            }
         }
     }
 }
@@ -242,22 +276,19 @@ impl OptionMap {
         Self(HashMap::new())
     }
 
-    /// Insert a new option into the map.
+    /// Insert the given option into the map.
     ///
-    /// If the option value is an empty string or an empty vector, then it is skipped.
+    /// If the option value is empty, it is skipped.
     pub fn insert(&mut self, name: impl Into<OptionName>, value: impl Into<OptionValue>) {
         let option_name = name.into();
         let option_value = value.into();
 
-        match option_value {
-            OptionValue::List(list_value) if list_value.is_empty() => return,
-            OptionValue::String(str_value) if str_value.is_empty() => return,
-            _ => {}
+        if !option_value.is_empty() {
+            self.0.insert(option_name, option_value);
         }
-
-        self.0.insert(option_name, option_value);
     }
 
+    /// Insert the given option, or a default value if it is empty.
     pub fn insert_or_else<T: Into<OptionValue>>(
         &mut self,
         name: impl Into<OptionName>,
@@ -265,39 +296,28 @@ impl OptionMap {
         default: impl FnOnce() -> eyre::Result<T>,
     ) -> eyre::Result<()> {
         let option_name = name.into();
+        let option_value = value.into();
 
-        let option_value = match value.into() {
-            OptionValue::List(list_value) if list_value.is_empty() => default()?.into(),
-            OptionValue::String(str_value) if str_value.trim().is_empty() => default()?.into(),
-            value => value,
-        };
-
-        self.0.insert(option_name, option_value);
+        if option_value.is_empty() {
+            self.0.insert(option_name, default()?.into());
+        } else {
+            self.0.insert(option_name, option_value);
+        }
 
         Ok(())
     }
 
-    pub fn insert_if_some<T: Into<OptionValue>>(
-        &mut self,
-        name: impl Into<OptionName>,
-        value: Option<T>,
-    ) {
-        if let Some(some_value) = value {
-            self.insert(name, some_value);
-        }
-    }
-
-    /// Insert the location of the signing key as an option.
-    pub fn insert_key(&mut self, keyring_dir: &Path, source_name: &str) -> eyre::Result<()> {
+    /// Insert the signing key as an option.
+    pub fn insert_key(&mut self, key: SigningKey) -> eyre::Result<()> {
         if self.contains(KnownOptionName::SignedBy) {
             bail!(Error::ConflictingKeyLocations);
         } else {
-            self.insert(
-                KnownOptionName::SignedBy,
-                key_path(keyring_dir, source_name)
-                    .to_string_lossy()
-                    .to_string(),
-            );
+            let value: OptionValue = match key {
+                SigningKey::File { path } => path.to_string_lossy().to_string().into(),
+                SigningKey::Inline { value } => value,
+            };
+
+            self.insert(KnownOptionName::SignedBy, value);
         }
 
         Ok(())

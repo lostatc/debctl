@@ -5,12 +5,41 @@ use pest::Parser;
 use pest_derive::Parser;
 
 use crate::error::Error;
-use crate::option::{KnownOptionName, OptionMap};
+use crate::option::{KnownOptionName, OptionMap, OptionName, OptionPair, OptionValue};
 
 #[derive(Parser)]
 #[grammar = "line.pest"]
 pub struct LineEntryParser;
 
+/// Parse a custom option in `key=value` format.
+pub fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<OptionPair> {
+    let (key, value) = match option.trim().split_once('=') {
+        Some(pair) => pair,
+        None => bail!(Error::MalformedOption {
+            option: option.to_string()
+        }),
+    };
+
+    let option_name = if force_literal {
+        OptionName::Custom(key.to_string())
+    } else {
+        KnownOptionName::from_str(key)?.into()
+    };
+
+    let option_value: OptionValue = if value.contains(',') {
+        value
+            .split(',')
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .into()
+    } else {
+        value.to_string().into()
+    };
+
+    Ok((option_name, option_value))
+}
+
+/// Parse a known option name, returning an error if it's not recognized.
 fn parse_option_name(option_name: &str) -> eyre::Result<KnownOptionName> {
     match KnownOptionName::from_str(option_name) {
         Ok(option_name) => Ok(option_name),
@@ -25,6 +54,7 @@ fn parse_option_name(option_name: &str) -> eyre::Result<KnownOptionName> {
     }
 }
 
+/// Parse a single-line-style source entry.
 pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     let line = match LineEntryParser::parse(Rule::line, entry) {
         Ok(mut result) => result.next().unwrap(),
