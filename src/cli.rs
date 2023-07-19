@@ -21,9 +21,12 @@ pub struct KeyLocationArgs {
     #[arg(short, long)]
     pub key: Option<String>,
 
-    /// Mark this source as trusted, disabling signature verification (dangerous)
+    /// Do not install the public signing key for the repo
+    ///
+    /// Instead, all keys in the trusted keyrings will be considered valid signers for the
+    /// repository, which is less secure.
     #[arg(long)]
-    pub force_trusted: bool,
+    pub force_no_key: bool,
 }
 
 #[derive(Args)]
