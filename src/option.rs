@@ -6,7 +6,6 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::error::Error;
-use crate::keyring::KeyLocation;
 use crate::source::{key_path, SourceType};
 
 /// The name of an option in a source file.
@@ -292,6 +291,11 @@ impl OptionMap {
             KnownOptionName::SignedBy,
             key_path(name).to_string_lossy().to_string(),
         );
+    }
+
+    /// Return whether this option map contains the given option.
+    pub fn contains(&self, name: impl Into<OptionName>) -> bool {
+        self.0.contains_key(&name.into())
     }
 
     /// Return the options in this map in their canonical order.

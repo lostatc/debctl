@@ -28,4 +28,7 @@ pub enum Error {
 
     #[error("Failed to download key from URL: `{url}`.\n\n{reason}")]
     KeyDownloadFailed { url: String, reason: String },
+
+    #[error("You cannot pass the `Signed-By` option without also passing `--force-no-key`.")]
+    ConflictingKeyLocations,
 }

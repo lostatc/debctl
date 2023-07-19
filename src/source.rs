@@ -170,7 +170,11 @@ impl RepoSource {
         let key = parse_key_args(args.key)?;
 
         if key.is_some() {
-            options.insert_key(&args.name);
+            if options.contains(KnownOptionName::SignedBy) {
+                bail!(Error::ConflictingKeyLocations);
+            } else {
+                options.insert_key(&args.name);
+            }
         }
 
         Ok(Self {
@@ -192,7 +196,11 @@ impl RepoSource {
         let key = parse_key_args(args.key)?;
 
         if key.is_some() {
-            options.insert_key(&args.name);
+            if options.contains(KnownOptionName::SignedBy) {
+                bail!(Error::ConflictingKeyLocations);
+            } else {
+                options.insert_key(&args.name);
+            }
         }
 
         Ok(Self {
