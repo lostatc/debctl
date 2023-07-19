@@ -104,7 +104,7 @@ pub fn source_path(source_name: &str) -> PathBuf {
         .collect()
 }
 
-const KEYRING_DIR: &str = "/usr/share/keyrings";
+const KEYRING_DIR: &str = "/etc/apt/keyrings";
 
 /// The path of a signing key for a repo source.
 pub fn key_path(source_name: &str) -> PathBuf {
