@@ -12,7 +12,7 @@ value_list = { option_value ~ ("," ~ option_value)* }
 
 option = { option_name ~ "=" ~ value_list }
 
-option_list = { "[" ~ space* ~ option ~ (space ~ option)* ~ space* ~ "]" }
+option_list = { "[" ~ space* ~ option ~ (space+ ~ option)* ~ space* ~ "]" }
 
 param = { (!space ~ ANY)+ }
 
