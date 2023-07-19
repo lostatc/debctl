@@ -52,6 +52,7 @@ pub struct RepoSource {
     pub name: String,
     pub options: OptionMap,
     pub key: Option<KeyLocation>,
+    pub keyring_dir: PathBuf,
     pub overwrite: bool,
 }
 
@@ -104,13 +105,9 @@ pub fn source_path(source_name: &str) -> PathBuf {
         .collect()
 }
 
-const KEYRING_DIR: &str = "/etc/apt/keyrings";
-
 /// The path of a signing key for a repo source.
-pub fn key_path(source_name: &str) -> PathBuf {
-    [KEYRING_DIR, &format!("{}-archive-keyring.gpg", source_name)]
-        .iter()
-        .collect()
+pub fn key_path(keyring_dir: &Path, source_name: &str) -> PathBuf {
+    keyring_dir.join(format!("{}-archive-keyring.gpg", source_name))
 }
 
 /// Parse the CLI args to determine where we're fetching the singing key from.
@@ -141,6 +138,11 @@ fn parse_key_args(args: SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
 }
 
 impl RepoSource {
+    /// The path of a signing key for this repo source.
+    pub fn key_path(&self) -> PathBuf {
+        key_path(&self.keyring_dir, &self.name)
+    }
+
     /// Construct an instance from the CLI `args`.
     ///
     /// This does not download the signing key.
@@ -167,20 +169,18 @@ impl RepoSource {
 
         options.insert_if_some(KnownOptionName::RepolibName, args.description.description);
 
+        let keyring_dir = Path::new(&args.key.keyring_dir).to_path_buf();
         let key = parse_key_args(args.key)?;
 
         if key.is_some() {
-            if options.contains(KnownOptionName::SignedBy) {
-                bail!(Error::ConflictingKeyLocations);
-            } else {
-                options.insert_key(&args.name);
-            }
+            options.insert_key(&keyring_dir, &args.name)?;
         }
 
         Ok(Self {
             name: args.name.clone(),
             options,
             key,
+            keyring_dir,
             overwrite: args.overwrite.overwrite,
         })
     }
@@ -193,20 +193,18 @@ impl RepoSource {
 
         options.insert_if_some(KnownOptionName::RepolibName, args.description.description);
 
+        let keyring_dir = Path::new(&args.key.keyring_dir).to_path_buf();
         let key = parse_key_args(args.key)?;
 
         if key.is_some() {
-            if options.contains(KnownOptionName::SignedBy) {
-                bail!(Error::ConflictingKeyLocations);
-            } else {
-                options.insert_key(&args.name);
-            }
+            options.insert_key(&keyring_dir, &args.name)?;
         }
 
         Ok(Self {
             name: args.name.clone(),
             options,
             key,
+            keyring_dir,
             overwrite: args.overwrite.overwrite,
         })
     }

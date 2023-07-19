@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::Path;
 use std::str::FromStr;
 
+use eyre::bail;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -286,11 +288,19 @@ impl OptionMap {
     }
 
     /// Insert the location of the signing key as an option.
-    pub fn insert_key(&mut self, name: &str) {
-        self.insert(
-            KnownOptionName::SignedBy,
-            key_path(name).to_string_lossy().to_string(),
-        );
+    pub fn insert_key(&mut self, keyring_dir: &Path, source_name: &str) -> eyre::Result<()> {
+        if self.contains(KnownOptionName::SignedBy) {
+            bail!(Error::ConflictingKeyLocations);
+        } else {
+            self.insert(
+                KnownOptionName::SignedBy,
+                key_path(keyring_dir, source_name)
+                    .to_string_lossy()
+                    .to_string(),
+            );
+        }
+
+        Ok(())
     }
 
     /// Return whether this option map contains the given option.

@@ -15,7 +15,7 @@ pub struct KeyLocationArgs {
     /// The public signing key for the repo
     ///
     /// This accepts the URL or local file path of a PGP key, in either GPG or armored format. The
-    /// key is downloaded and installed to `/etc/apt/keyrings`.
+    /// key is downloaded and installed to the directory specified by --keyring-dir.
     ///
     /// If you pass --keyserver, this is the key fingerprint.
     #[arg(short, long)]
@@ -34,11 +34,15 @@ pub struct SigningKeyArgs {
     #[command(flatten)]
     pub location: KeyLocationArgs,
 
-    /// Download the public signing key from this keyserver
+    /// Download the repository signing key from this keyserver
     ///
     /// If this option is passed, --key is interpreted as the key fingerprint.
     #[arg(long, value_name = "URL")]
     pub keyserver: Option<String>,
+
+    /// The directory to install the repository signing key to
+    #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
+    pub keyring_dir: String,
 }
 
 #[derive(Args)]
