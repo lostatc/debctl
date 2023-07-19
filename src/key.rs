@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -126,6 +126,14 @@ fn dearmor_key_if_armored(mut key_file: File) -> eyre::Result<File> {
     Ok(dearmored_key)
 }
 
+fn ensure_dir_exists(keyring_dir: &Path) -> eyre::Result<()> {
+    match fs::create_dir_all(keyring_dir) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
+        Err(err) => Err(err).wrap_err("failed creating directory"),
+    }
+}
+
 /// Install the key at `url` to `dest`.
 ///
 /// The file at `dest` is created or truncated. If this key is armored, this dearmors it.
@@ -183,13 +191,16 @@ fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str, dest: &Path) -> 
 impl KeyLocation {
     /// Download and install the signing key to `path`.
     pub fn install(&self, dest: &Path) -> eyre::Result<()> {
+        if let Some(keyring_dir) = dest.parent() {
+            ensure_dir_exists(keyring_dir).wrap_err("failed creating keyring directory")?;
+        }
+
         match &self {
             Self::Download { url } => {
                 download_key(url.as_str(), dest).wrap_err("failed downloading signing key")
             }
-            Self::File { path: src } => {
-                install_local_key(src, dest).wrap_err("failed installing key from local path")
-            }
+            Self::File { path: src } => install_local_key(src, dest)
+                .wrap_err("failed installing signing key from local path"),
             Self::Keyserver {
                 fingerprint,
                 keyserver,
