@@ -7,7 +7,7 @@ use strum_macros::EnumIter;
 
 use crate::error::Error;
 use crate::keyring::KeyLocation;
-use crate::source::key_path;
+use crate::source::{key_path, SourceType};
 
 /// The name of an option in a source file.
 ///
@@ -143,6 +143,20 @@ impl From<&KnownOptionName> for OptionName {
     }
 }
 
+/// Return whether this option value represents a true boolean value.
+fn is_truthy(s: &str) -> bool {
+    let lowercase = s.to_lowercase();
+
+    lowercase == "yes" || lowercase == "true"
+}
+
+/// Return whether this option value represents a false boolean value.
+fn is_falsey(s: &str) -> bool {
+    let lowercase = s.to_lowercase();
+
+    lowercase == "no" || lowercase == "false"
+}
+
 /// The value of an option in a source file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionValue {
@@ -153,13 +167,48 @@ pub enum OptionValue {
 
 impl From<String> for OptionValue {
     fn from(value: String) -> Self {
-        Self::String(value)
+        if is_truthy(&value) {
+            Self::Bool(true)
+        } else if is_falsey(&value) {
+            Self::Bool(false)
+        } else {
+            Self::String(value)
+        }
+    }
+}
+
+impl From<&str> for OptionValue {
+    fn from(value: &str) -> Self {
+        value.to_string().into()
+    }
+}
+
+impl From<Vec<&str>> for OptionValue {
+    fn from(value: Vec<&str>) -> Self {
+        value
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .into()
     }
 }
 
 impl From<Vec<String>> for OptionValue {
     fn from(value: Vec<String>) -> Self {
-        Self::List(value)
+        match &value.as_slice() {
+            &[single] => single.as_str().into(),
+            _ => Self::List(value),
+        }
+    }
+}
+
+impl From<Vec<SourceType>> for OptionValue {
+    fn from(value: Vec<SourceType>) -> Self {
+        value
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .into()
     }
 }
 
@@ -206,6 +255,35 @@ impl OptionMap {
         }
 
         self.0.insert(option_name, option_value);
+    }
+
+    pub fn insert_or_else<T: Into<OptionValue>>(
+        &mut self,
+        name: impl Into<OptionName>,
+        value: impl Into<OptionValue>,
+        default: impl FnOnce() -> eyre::Result<T>,
+    ) -> eyre::Result<()> {
+        let option_name = name.into();
+
+        let option_value = match value.into() {
+            OptionValue::List(list_value) if list_value.is_empty() => default()?.into(),
+            OptionValue::String(str_value) if str_value.trim().is_empty() => default()?.into(),
+            value => value,
+        };
+
+        self.0.insert(option_name, option_value);
+
+        Ok(())
+    }
+
+    pub fn insert_if_some<T: Into<OptionValue>>(
+        &mut self,
+        name: impl Into<OptionName>,
+        value: Option<T>,
+    ) {
+        if let Some(some_value) = value {
+            self.insert(name, some_value);
+        }
     }
 
     /// Insert the location of the signing key as an option.

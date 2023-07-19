@@ -39,9 +39,7 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     for rule in line.into_inner() {
         match rule.as_rule() {
             Rule::source_type => {
-                let source_type = rule.as_str().to_string();
-
-                option_map.insert(KnownOptionName::Types, source_type);
+                option_map.insert(KnownOptionName::Types, rule.as_str());
             }
             Rule::option_list => {
                 for option in rule.into_inner() {
@@ -55,18 +53,7 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
                         .map(|rule| rule.as_str())
                         .collect::<Vec<_>>();
 
-                    let option_value: OptionValue = match option_values.as_slice() {
-                        &["yes"] => true.into(),
-                        &["no"] => false.into(),
-                        &[value] => value.to_string().into(),
-                        values => values
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect::<Vec<_>>()
-                            .into(),
-                    };
-
-                    option_map.insert(option_name, option_value);
+                    option_map.insert(option_name, option_values);
                 }
             }
             Rule::param => {
@@ -78,14 +65,9 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     }
 
     if let &[uri, suite, ref components @ ..] = params.as_slice() {
-        let components = components
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-
-        option_map.insert(KnownOptionName::Uris, uri.to_string());
-        option_map.insert(KnownOptionName::Suites, suite.to_string());
-        option_map.insert(KnownOptionName::Components, components);
+        option_map.insert(KnownOptionName::Uris, uri);
+        option_map.insert(KnownOptionName::Suites, suite);
+        option_map.insert(KnownOptionName::Components, components.to_vec());
     } else {
         unreachable!("failed parsing uri, suite, and components")
     }

@@ -81,16 +81,14 @@ fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<Opti
         KnownOptionName::from_str(key)?.into()
     };
 
-    let lowercase_value = value.to_lowercase();
-
-    let option_value = if lowercase_value == "yes" {
-        OptionValue::Bool(true)
-    } else if lowercase_value == "no" {
-        OptionValue::Bool(false)
-    } else if value.contains(',') {
-        OptionValue::List(value.split(',').map(ToString::to_string).collect())
+    let option_value: OptionValue = if value.contains(',') {
+        value
+            .split(',')
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .into()
     } else {
-        OptionValue::String(value.to_string())
+        value.to_string().into()
     };
 
     Ok((option_name, option_value))
@@ -138,23 +136,9 @@ impl RepoSource {
             .map(|option| parse_custom_option(option, args.force_literal_options))
             .collect::<Result<OptionMap, _>>()?;
 
-        let suites = if args.suite.is_empty() {
-            vec![get_current_codename()?]
-        } else {
-            args.suite
-        };
-
-        let types = args
-            .kind
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-
         options.insert(KnownOptionName::Uris, args.uri);
 
-        options.insert(KnownOptionName::Suites, suites);
-
-        options.insert(KnownOptionName::Types, types);
+        options.insert(KnownOptionName::Types, args.kind);
 
         options.insert(KnownOptionName::Components, args.component);
 
@@ -164,9 +148,9 @@ impl RepoSource {
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
-        if let Some(description) = args.description.description {
-            options.insert(KnownOptionName::RepolibName, description);
-        }
+        options.insert_or_else(KnownOptionName::Suites, args.suite, get_current_codename)?;
+
+        options.insert_if_some(KnownOptionName::RepolibName, args.description.description);
 
         let key = parse_key_args(args.key);
 
@@ -186,9 +170,7 @@ impl RepoSource {
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
-        if let Some(description) = args.description.description {
-            options.insert(KnownOptionName::RepolibName, description);
-        }
+        options.insert_if_some(KnownOptionName::RepolibName, args.description.description);
 
         let key = parse_key_args(args.key);
 
