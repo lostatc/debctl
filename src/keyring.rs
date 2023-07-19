@@ -34,7 +34,20 @@ pub enum KeyLocation {
 fn download_file(url: &str) -> eyre::Result<File> {
     let mut temp_file = tempfile::tempfile()?;
 
-    reqwest::blocking::get(url)?.copy_to(&mut temp_file)?;
+    let mut response = reqwest::blocking::get(url)?;
+    let status = response.status();
+
+    if status.is_success() {
+        response.copy_to(&mut temp_file)?;
+    } else {
+        bail!(Error::KeyDownloadFailed {
+            url: url.to_string(),
+            reason: match status.canonical_reason() {
+                Some(reason_phrase) => format!("Error: {}", reason_phrase),
+                None => format!("Error Code: {}", status.as_str()),
+            }
+        })
+    }
 
     Ok(temp_file)
 }

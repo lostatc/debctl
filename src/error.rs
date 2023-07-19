@@ -25,4 +25,7 @@ pub enum Error {
 
     #[error("This key is not a valid URL or file path: `{path}`.")]
     InvalidKeyLocation { path: String },
+
+    #[error("Failed to download key from URL: `{url}`.\n\n{reason}")]
+    KeyDownloadFailed { url: String, reason: String },
 }
