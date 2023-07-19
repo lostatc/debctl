@@ -287,15 +287,11 @@ impl OptionMap {
     }
 
     /// Insert the location of the signing key as an option.
-    ///
-    /// If `key` is `None`, then this does nothing.
-    pub fn insert_key(&mut self, name: &str, key: &Option<KeyLocation>) {
-        if key.is_some() {
-            self.insert(
-                KnownOptionName::SignedBy,
-                key_path(name).to_string_lossy().to_string(),
-            );
-        }
+    pub fn insert_key(&mut self, name: &str) {
+        self.insert(
+            KnownOptionName::SignedBy,
+            key_path(name).to_string_lossy().to_string(),
+        );
     }
 
     /// Return the options in this map in their canonical order.

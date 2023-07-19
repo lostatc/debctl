@@ -169,7 +169,9 @@ impl RepoSource {
 
         let key = parse_key_args(args.key)?;
 
-        options.insert_key(&args.name, &key);
+        if key.is_some() {
+            options.insert_key(&args.name);
+        }
 
         Ok(Self {
             name: args.name.clone(),
@@ -189,7 +191,9 @@ impl RepoSource {
 
         let key = parse_key_args(args.key)?;
 
-        options.insert_key(&args.name, &key);
+        if key.is_some() {
+            options.insert_key(&args.name);
+        }
 
         Ok(Self {
             name: args.name.clone(),
