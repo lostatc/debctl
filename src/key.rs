@@ -64,10 +64,20 @@ fn probe_is_key_armored(file: &mut impl Read) -> eyre::Result<bool> {
     Ok(PGP_ARMOR_REGEX.is_match(&first_line))
 }
 
-/// Dearmor the key in `file` and return a new temporary file.
-fn dearmor_key(file: &mut File) -> eyre::Result<File> {
+/// The encoding of a PGP key.
+#[derive(Debug, Clone, Copy)]
+enum KeyEncoding {
+    Armored,
+    Binary,
+}
+
+/// Encode the PGP key in `file` and return a new temporary file.
+fn encode_key(file: &mut File, action: KeyEncoding) -> eyre::Result<File> {
     let mut process = Command::new("gpg")
-        .arg("--dearmor")
+        .arg(match action {
+            KeyEncoding::Armored => "--armor",
+            KeyEncoding::Binary => "--dearmor",
+        })
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
@@ -105,25 +115,30 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
     }
 }
 
-/// Dearmor the given key if it is ascii-armored.
+/// Change the encoding of a PGP key.
 ///
-/// Otherwise, return the file as-is.
-fn dearmor_key_if_armored(mut key_file: File) -> eyre::Result<File> {
+/// This leaves the key as-is if it's already encoded that way.
+fn change_key_encoding(mut key_file: File, action: KeyEncoding) -> eyre::Result<File> {
     key_file.seek(SeekFrom::Start(0))?;
 
     let key_is_armored =
         probe_is_key_armored(&mut key_file).wrap_err("failed probing if key is armored")?;
 
-    let mut dearmored_key = if key_is_armored {
-        key_file.seek(SeekFrom::Start(0))?;
-        dearmor_key(&mut key_file).wrap_err("failed dearmoring key")?
-    } else {
-        key_file
+    key_file.seek(SeekFrom::Start(0))?;
+
+    let mut encoded_key = match (key_is_armored, action) {
+        (true, KeyEncoding::Binary) => {
+            encode_key(&mut key_file, action).wrap_err("failed dearmoring key")?
+        }
+        (false, KeyEncoding::Armored) => {
+            encode_key(&mut key_file, action).wrap_err("failed armoring key")?
+        }
+        _ => key_file,
     };
 
-    dearmored_key.seek(SeekFrom::Start(0))?;
+    encoded_key.seek(SeekFrom::Start(0))?;
 
-    Ok(dearmored_key)
+    Ok(encoded_key)
 }
 
 fn ensure_dir_exists(keyring_dir: &Path) -> eyre::Result<()> {
@@ -140,7 +155,7 @@ fn ensure_dir_exists(keyring_dir: &Path) -> eyre::Result<()> {
 fn download_key(url: &str, dest: &Path) -> eyre::Result<()> {
     let src_file = download_file(url).wrap_err("failed downloading signing key")?;
 
-    let mut dearmored_key = dearmor_key_if_armored(src_file)?;
+    let mut dearmored_key = change_key_encoding(src_file, KeyEncoding::Binary)?;
 
     let mut dest_file = open_key_destination(dest)?;
 
@@ -155,7 +170,7 @@ fn download_key(url: &str, dest: &Path) -> eyre::Result<()> {
 fn install_local_key(key: &Path, dest: &Path) -> eyre::Result<()> {
     let src_file = File::open(key).wrap_err("failed opening local key file for reading")?;
 
-    let mut dearmored_key = dearmor_key_if_armored(src_file)?;
+    let mut dearmored_key = change_key_encoding(src_file, KeyEncoding::Binary)?;
 
     let mut dest_file = open_key_destination(dest)?;
 
