@@ -12,11 +12,12 @@ pub struct Cli {
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 pub struct KeyLocationArgs {
-    /// The URL of the public signing key to download
+    /// The public signing key for the repo
     ///
-    /// This can be armored or GPG format.
-    #[arg(short, long, value_name = "URL")]
-    pub key_url: Option<String>,
+    /// The URL or local file path of a PGP key, in either GPG or armored format. The key is
+    /// downloaded and installed to `/usr/share/keyrings`.
+    #[arg(short, long)]
+    pub key: Option<String>,
 
     /// The fingerprint of the public signing key to fetch from the keyserver
     #[arg(short, long, value_name = "HASH")]

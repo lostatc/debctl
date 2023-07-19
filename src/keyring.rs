@@ -1,11 +1,12 @@
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read, Seek};
-use std::path::Path;
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use eyre::{bail, WrapErr};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use reqwest::Url;
 
 use crate::error::Error;
 
@@ -17,7 +18,10 @@ static PGP_ARMOR_REGEX: Lazy<Regex> =
 #[derive(Debug)]
 pub enum KeyLocation {
     /// Download the key from a URL.
-    Download { url: String },
+    Download { url: Url },
+
+    /// Copy the file from a path.
+    File { path: PathBuf },
 
     /// Fetch the key from a keyserver.
     Keyserver {
@@ -79,16 +83,68 @@ fn dearmor_key(file: &mut File) -> eyre::Result<File> {
     Ok(dearmored_file)
 }
 
+fn open_key_destination(path: &Path) -> eyre::Result<File> {
+    match File::create(path) {
+        Ok(file) => Ok(file),
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
+        Err(err) => Err(err).wrap_err("failed opening destination file for writing")?,
+    }
+}
+
+fn dearmor_key_if_armored(mut key_file: File) -> eyre::Result<File> {
+    key_file.seek(SeekFrom::Start(0))?;
+
+    let key_is_armored =
+        probe_is_key_armored(&mut key_file).wrap_err("failed probing if key is armored")?;
+
+    let mut dearmored_key = if key_is_armored {
+        key_file.seek(SeekFrom::Start(0))?;
+        dearmor_key(&mut key_file).wrap_err("failed dearmoring key")?
+    } else {
+        key_file
+    };
+
+    dearmored_key.seek(SeekFrom::Start(0))?;
+
+    Ok(dearmored_key)
+}
+
+/// Install the key at `url` to `dest`.
+///
+/// The file at `dest` is created or truncated. If this key is armored, this dearmors it.
+fn download_key(url: &str, dest: &Path) -> eyre::Result<()> {
+    let src_file = download_file(url).wrap_err("failed downloading signing key")?;
+
+    let mut dearmored_key = dearmor_key_if_armored(src_file)?;
+
+    let mut dest_file = open_key_destination(dest)?;
+
+    io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
+
+    Ok(())
+}
+
+/// Install the key at `key` to `dest`.
+///
+/// The file at `dest` is created or truncated. If this key is armored, this dearmors it.
+fn install_local_key(key: &Path, dest: &Path) -> eyre::Result<()> {
+    let src_file = File::open(key).wrap_err("failed opening local key file for reading")?;
+
+    let mut dearmored_key = dearmor_key_if_armored(src_file)?;
+
+    let mut dest_file = open_key_destination(dest)?;
+
+    io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
+
+    Ok(())
+}
+
 /// Download a singing key from a keyserver to `key_path`.
-fn fetch_key_from_keyserver(
-    key_path: &Path,
-    fingerprint: &str,
-    keyserver: &str,
-) -> eyre::Result<()> {
+fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str, dest: &Path) -> eyre::Result<()> {
     Command::new("gpg")
         .arg("--no-default-keyring")
         .arg("--keyring")
-        .arg(key_path.as_os_str())
+        .arg(dest.as_os_str())
         .arg("--keyserver")
         .arg(keyserver)
         .arg("--recv-keys")
@@ -99,48 +155,20 @@ fn fetch_key_from_keyserver(
     Ok(())
 }
 
-/// Download the key at `url` to `path`.
-///
-/// The file at `path` is created or truncated. If this key is armored, this dearmors it.
-fn download_key(url: &str, path: &Path) -> eyre::Result<()> {
-    let mut key_file = download_file(url).wrap_err("failed downloading signing key")?;
-
-    key_file.seek(io::SeekFrom::Start(0))?;
-
-    let key_is_armored =
-        probe_is_key_armored(&mut key_file).wrap_err("failed probing if key is armored")?;
-
-    let mut dearmored_key = if key_is_armored {
-        key_file.seek(io::SeekFrom::Start(0))?;
-        dearmor_key(&mut key_file).wrap_err("failed dearmoring key")?
-    } else {
-        key_file
-    };
-
-    dearmored_key.seek(io::SeekFrom::Start(0))?;
-
-    let mut dest_file = match File::create(path) {
-        Ok(file) => file,
-        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
-        Err(err) => bail!(err),
-    };
-
-    io::copy(&mut dearmored_key, &mut dest_file).wrap_err("failed copying key to destination")?;
-
-    Ok(())
-}
-
 impl KeyLocation {
     /// Download and install the signing key to `path`.
-    pub fn install(&self, path: &Path) -> eyre::Result<()> {
+    pub fn install(&self, dest: &Path) -> eyre::Result<()> {
         match &self {
             Self::Download { url } => {
-                download_key(url, path).wrap_err("failed downloading signing key")
+                download_key(url.as_str(), dest).wrap_err("failed downloading signing key")
+            }
+            Self::File { path: src } => {
+                install_local_key(src, dest).wrap_err("failed installing key from local path")
             }
             Self::Keyserver {
                 fingerprint,
                 keyserver,
-            } => fetch_key_from_keyserver(path, fingerprint, keyserver)
+            } => fetch_key_from_keyserver(fingerprint, keyserver, dest)
                 .wrap_err("failed fetching signing key from keyserver"),
         }
     }

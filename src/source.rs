@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
 
 use clap::ValueEnum;
 use eyre::{bail, WrapErr};
+use reqwest::Url;
 
 use crate::cli::{AddLine, AddNew, SigningKeyArgs};
 use crate::error::Error;
@@ -112,9 +113,24 @@ pub fn key_path(source_name: &str) -> PathBuf {
         .collect()
 }
 
-fn parse_key_args(args: SigningKeyArgs) -> Option<KeyLocation> {
-    if let Some(url) = args.location.key_url {
-        Some(KeyLocation::Download { url })
+fn parse_key_args(args: SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
+    Ok(if let Some(url_or_path) = args.location.key {
+        match Url::parse(&url_or_path) {
+            Ok(url) => Some(KeyLocation::Download { url }),
+            Err(_) => {
+                let path = Path::new(&url_or_path);
+
+                if path.exists() {
+                    Some(KeyLocation::File {
+                        path: path.to_path_buf(),
+                    })
+                } else {
+                    bail!(Error::InvalidKeyLocation {
+                        path: url_or_path.to_string()
+                    });
+                }
+            }
+        }
     } else if let Some(fingerprint) = args.location.fingerprint {
         Some(KeyLocation::Keyserver {
             fingerprint,
@@ -122,7 +138,7 @@ fn parse_key_args(args: SigningKeyArgs) -> Option<KeyLocation> {
         })
     } else {
         None
-    }
+    })
 }
 
 impl RepoSource {
@@ -152,7 +168,7 @@ impl RepoSource {
 
         options.insert_if_some(KnownOptionName::RepolibName, args.description.description);
 
-        let key = parse_key_args(args.key);
+        let key = parse_key_args(args.key)?;
 
         options.insert_key(&args.name, &key);
 
@@ -172,7 +188,7 @@ impl RepoSource {
 
         options.insert_if_some(KnownOptionName::RepolibName, args.description.description);
 
-        let key = parse_key_args(args.key);
+        let key = parse_key_args(args.key)?;
 
         options.insert_key(&args.name, &key);
 

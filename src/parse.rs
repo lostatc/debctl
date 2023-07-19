@@ -5,7 +5,7 @@ use pest::Parser;
 use pest_derive::Parser;
 
 use crate::error::Error;
-use crate::option::{KnownOptionName, OptionMap, OptionValue};
+use crate::option::{KnownOptionName, OptionMap};
 
 #[derive(Parser)]
 #[grammar = "line.pest"]
