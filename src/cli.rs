@@ -14,14 +14,12 @@ pub struct Cli {
 pub struct KeyLocationArgs {
     /// The public signing key for the repo
     ///
-    /// The URL or local file path of a PGP key, in either GPG or armored format. The key is
-    /// downloaded and installed to `/usr/share/keyrings`.
+    /// This accepts the URL or local file path of a PGP key, in either GPG or armored format. The
+    /// key is downloaded and installed to `/usr/share/keyrings`.
+    ///
+    /// If you pass --keyserver, this is the key fingerprint.
     #[arg(short, long)]
     pub key: Option<String>,
-
-    /// The fingerprint of the public signing key to fetch from the keyserver
-    #[arg(short, long, value_name = "HASH")]
-    pub fingerprint: Option<String>,
 
     /// Mark this source as trusted, disabling signature verification (dangerous)
     #[arg(long)]
@@ -33,9 +31,11 @@ pub struct SigningKeyArgs {
     #[command(flatten)]
     pub location: KeyLocationArgs,
 
-    /// The keyserver to fetch the public signing key from
-    #[arg(long, value_name = "URL", default_value = "keyserver.ubuntu.com")]
-    pub keyserver: String,
+    /// Download the public signing key from this keyserver
+    ///
+    /// If this option is passed, --key is interpreted as the key fingerprint.
+    #[arg(long, value_name = "URL")]
+    pub keyserver: Option<String>,
 }
 
 #[derive(Args)]

@@ -113,12 +113,17 @@ pub fn key_path(source_name: &str) -> PathBuf {
         .collect()
 }
 
+/// Parse the CLI args to determine where we're fetching the singing key from.
 fn parse_key_args(args: SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
-    Ok(if let Some(url_or_path) = args.location.key {
-        match Url::parse(&url_or_path) {
+    Ok(match (args.location.key, args.keyserver) {
+        (Some(key_location), Some(keyserver)) => Some(KeyLocation::Keyserver {
+            fingerprint: key_location,
+            keyserver,
+        }),
+        (Some(key_location), None) => match Url::parse(&key_location) {
             Ok(url) => Some(KeyLocation::Download { url }),
             Err(_) => {
-                let path = Path::new(&url_or_path);
+                let path = Path::new(&key_location);
 
                 if path.exists() {
                     Some(KeyLocation::File {
@@ -126,18 +131,12 @@ fn parse_key_args(args: SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
                     })
                 } else {
                     bail!(Error::InvalidKeyLocation {
-                        path: url_or_path.to_string()
+                        path: key_location.to_string()
                     });
                 }
             }
-        }
-    } else if let Some(fingerprint) = args.location.fingerprint {
-        Some(KeyLocation::Keyserver {
-            fingerprint,
-            keyserver: args.keyserver,
-        })
-    } else {
-        None
+        },
+        (None, _) => None,
     })
 }
 
