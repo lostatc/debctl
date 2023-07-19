@@ -96,6 +96,7 @@ fn dearmor_key(file: &mut File) -> eyre::Result<File> {
     Ok(dearmored_file)
 }
 
+/// Open the destination file to install the key to.
 fn open_key_destination(path: &Path) -> eyre::Result<File> {
     match File::create(path) {
         Ok(file) => Ok(file),
@@ -104,6 +105,9 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
     }
 }
 
+/// Dearmor the given key if it is ascii-armored.
+///
+/// Otherwise, return the file as-is.
 fn dearmor_key_if_armored(mut key_file: File) -> eyre::Result<File> {
     key_file.seek(SeekFrom::Start(0))?;
 
