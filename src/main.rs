@@ -6,7 +6,7 @@ mod cli;
 mod command;
 mod error;
 mod format;
-mod keyring;
+mod key;
 mod option;
 mod parse;
 mod source;

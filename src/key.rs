@@ -158,7 +158,7 @@ fn install_local_key(key: &Path, dest: &Path) -> eyre::Result<()> {
 
 /// Download a singing key from a keyserver to `key_path`.
 fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str, dest: &Path) -> eyre::Result<()> {
-    Command::new("gpg")
+    let output = Command::new("gpg")
         .arg("--no-default-keyring")
         .arg("--keyring")
         .arg(dest.as_os_str())
@@ -166,8 +166,16 @@ fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str, dest: &Path) -> 
         .arg(keyserver)
         .arg("--recv-keys")
         .arg(fingerprint)
-        .spawn()?
-        .wait()?;
+        .output()
+        .wrap_err("failed to execute gpg command")?;
+
+    if !output.status.success() {
+        bail!(Error::KeyserverFetchFailed {
+            fingerprint: fingerprint.to_string(),
+            reason: String::from_utf8(output.stderr)
+                .wrap_err("failed to decode gpg command stderr")?,
+        });
+    }
 
     Ok(())
 }

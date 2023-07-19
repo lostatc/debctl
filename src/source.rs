@@ -8,7 +8,7 @@ use reqwest::Url;
 
 use crate::cli::{AddLine, AddNew, SigningKeyArgs};
 use crate::error::Error;
-use crate::keyring::KeyLocation;
+use crate::key::KeyLocation;
 use crate::option::{KnownOptionName, OptionMap, OptionName, OptionPair, OptionValue};
 use crate::parse::parse_line_entry;
 
