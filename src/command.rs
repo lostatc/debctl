@@ -1,7 +1,7 @@
-use crate::cli::{Add, AddCommands, AddLine, AddNew, Commands};
+use crate::cli::{Add, Commands, New};
 use crate::source::RepoSource;
 
-fn new(args: AddNew) -> eyre::Result<()> {
+fn new(args: New) -> eyre::Result<()> {
     let mut source = RepoSource::from_new_args(args)?;
 
     source.install_key()?;
@@ -10,7 +10,7 @@ fn new(args: AddNew) -> eyre::Result<()> {
     Ok(())
 }
 
-fn add(args: AddLine) -> eyre::Result<()> {
+fn add(args: Add) -> eyre::Result<()> {
     let mut source = RepoSource::from_add_args(args)?;
 
     source.install_key()?;
@@ -22,11 +22,8 @@ fn add(args: AddLine) -> eyre::Result<()> {
 impl Commands {
     pub fn dispatch(self) -> eyre::Result<()> {
         match self {
-            Commands::Add(Add { command }) => match command {
-                AddCommands::New(args) => new(args),
-                AddCommands::Line(args) => add(args),
-                AddCommands::Ppa(_) => todo!(),
-            },
+            Commands::New(args) => new(args),
+            Commands::Add(args) => add(args),
         }
     }
 }

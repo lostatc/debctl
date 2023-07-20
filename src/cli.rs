@@ -71,7 +71,7 @@ pub struct OverwriteArgs {
 }
 
 #[derive(Args)]
-pub struct AddNew {
+pub struct New {
     /// A unique name for the source
     pub name: String,
 
@@ -136,7 +136,7 @@ pub struct AddNew {
 }
 
 #[derive(Args)]
-pub struct AddLine {
+pub struct Add {
     /// The one-line-style source entry
     pub line: String,
 
@@ -157,23 +157,10 @@ pub struct AddLine {
     pub overwrite: OverwriteArgs,
 }
 
-#[derive(Args)]
-pub struct AddPpa {
-    /// The name of the PPA
-    pub ppa: String,
-}
-
-#[derive(Args)]
-pub struct Add {
-    #[command(subcommand)]
-    pub command: AddCommands,
-}
-
 #[derive(Subcommand)]
-#[allow(clippy::large_enum_variant)]
-pub enum AddCommands {
+pub enum Commands {
     /// Add a source by specifying its parameters
-    New(AddNew),
+    New(New),
 
     /// Add a source by its one-line-style source entry
     ///
@@ -183,14 +170,5 @@ pub enum AddCommands {
     /// One-line-style source entries typically have this format:
     ///
     /// deb [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
-    Line(AddLine),
-
-    /// Add a source from a PPA
-    Ppa(AddPpa),
-}
-
-#[derive(Subcommand)]
-pub enum Commands {
-    /// Add a new repository source
     Add(Add),
 }

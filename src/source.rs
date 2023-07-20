@@ -6,7 +6,7 @@ use std::process::Command;
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
-use crate::cli::{AddLine, AddNew, SigningKeyArgs};
+use crate::cli::{Add, New, SigningKeyArgs};
 use crate::error::Error;
 use crate::key::KeyLocation;
 use crate::option::{KnownOptionName, OptionMap, OptionValue};
@@ -88,7 +88,7 @@ impl RepoSource {
     }
 
     /// Construct an instance from the CLI `args`.
-    pub fn from_new_args(args: AddNew) -> eyre::Result<Self> {
+    pub fn from_new_args(args: New) -> eyre::Result<Self> {
         let mut options = args
             .option
             .into_iter()
@@ -127,7 +127,7 @@ impl RepoSource {
     }
 
     /// Construct an instance from the CLI `args`.
-    pub fn from_add_args(args: AddLine) -> eyre::Result<Self> {
+    pub fn from_add_args(args: Add) -> eyre::Result<Self> {
         let mut options = parse_line_entry(&args.line)
             .wrap_err("failed parsing single-line-style source entry")?;
 
