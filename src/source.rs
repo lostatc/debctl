@@ -50,7 +50,7 @@ const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
 fn parse_key_args(args: &SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
     Ok(match (&args.location.key, &args.keyserver) {
         (Some(key_location), Some(keyserver)) => Some(KeyLocation::Keyserver {
-            fingerprint: key_location.to_string(),
+            id: key_location.to_string(),
             keyserver: keyserver.to_string(),
         }),
         (Some(key_location), None) => match Url::parse(key_location) {

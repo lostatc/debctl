@@ -32,6 +32,6 @@ pub enum Error {
     #[error("You cannot pass the `Signed-By` option without also passing `--force-no-key`.")]
     ConflictingKeyLocations,
 
-    #[error("Failed to fetch key from the keyserver: `{fingerprint}`.\n\n{reason}")]
-    KeyserverFetchFailed { fingerprint: String, reason: String },
+    #[error("Failed to fetch key from the keyserver: `{id}`.\n\n{reason}")]
+    KeyserverFetchFailed { id: String, reason: String },
 }
