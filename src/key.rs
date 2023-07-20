@@ -6,8 +6,8 @@ use eyre::{bail, WrapErr};
 use reqwest::Url;
 
 use crate::error::Error;
-use crate::gpg::{Key, KeyEncoding, KeyId, Keyring};
 use crate::option::OptionValue;
+use crate::pgp::{Key, KeyEncoding, KeyId, Keyring};
 
 /// A location to acquire a public singing key from.
 #[derive(Debug)]

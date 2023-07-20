@@ -5,11 +5,11 @@
 mod cli;
 mod command;
 mod error;
-mod gpg;
 mod key;
 mod net;
 mod option;
 mod parse;
+mod pgp;
 mod source;
 mod types;
 
