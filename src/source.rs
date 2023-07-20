@@ -1,8 +1,8 @@
+use std::fs::{File, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str::FromStr;
 
-use clap::ValueEnum;
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
@@ -12,38 +12,13 @@ use crate::key::KeyLocation;
 use crate::option::{KnownOptionName, OptionMap, OptionValue};
 use crate::parse::{parse_custom_option, parse_line_entry};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum SourceType {
-    /// A binary package
-    Deb,
+/// A repository singing key.
+pub enum SigningKey {
+    /// The key is stored in a separate file.
+    File { path: PathBuf },
 
-    /// A source package
-    DebSrc,
-}
-
-impl ToString for SourceType {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Deb => String::from("deb"),
-            Self::DebSrc => String::from("deb-src"),
-        }
-    }
-}
-
-impl FromStr for SourceType {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use SourceType::*;
-
-        match s {
-            "deb" => Ok(Deb),
-            "deb-src" => Ok(DebSrc),
-            _ => Err(Error::MalformedSingleLineEntry {
-                reason: String::from("The entry must start with `deb` or `deb-src`."),
-            }),
-        }
-    }
+    /// The key is inlined in the source file.
+    Inline { value: OptionValue },
 }
 
 /// A repository source.
@@ -98,31 +73,12 @@ fn parse_key_args(args: &SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
     })
 }
 
-/// A repository singing key.
-pub enum SigningKey {
-    /// The key is stored in a separate file.
-    File { path: PathBuf },
-
-    /// The key is inlined in the source file.
-    Inline { value: OptionValue },
-}
-
 impl RepoSource {
     /// The path to install this repo source to.
-    pub fn path(&self) -> PathBuf {
+    fn path(&self) -> PathBuf {
         [SOURCES_DIR, &format!("{}.sources", self.name)]
             .iter()
             .collect()
-    }
-
-    /// The options in this repository source.
-    pub fn options(&self) -> &OptionMap {
-        &self.options
-    }
-
-    /// Whether to overwrite the source file.
-    pub fn overwrite(&self) -> bool {
-        self.overwrite
     }
 
     /// The path of a signing key for this repo source.
@@ -215,6 +171,45 @@ impl RepoSource {
 
             self.options.insert_key(key)?;
         }
+
+        Ok(())
+    }
+
+    /// Open the repo source file, truncating if the user decided to overwrite.
+    fn open_source_file(&self, path: &Path) -> eyre::Result<File> {
+        if self.overwrite {
+            match File::create(path) {
+                Ok(file) => Ok(file),
+                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                    bail!(Error::PermissionDenied)
+                }
+                Err(err) => bail!(err),
+            }
+        } else {
+            match OpenOptions::new().create_new(true).write(true).open(path) {
+                Ok(file) => Ok(file),
+                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                    bail!(Error::SourceFileAlreadyExists {
+                        path: path.to_owned()
+                    })
+                }
+                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                    bail!(Error::PermissionDenied)
+                }
+                Err(err) => bail!(err),
+            }
+        }
+    }
+
+    /// Install this repo source as a file in deb822 format.
+    pub fn install(&self) -> eyre::Result<()> {
+        let mut file = self.open_source_file(&self.path())?;
+
+        for (key, value) in self.options.options() {
+            writeln!(&mut file, "{}: {}", key.to_deb822(), value.to_deb822())?;
+        }
+
+        file.flush()?;
 
         Ok(())
     }

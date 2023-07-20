@@ -1,6 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 
-use crate::source::SourceType;
+use crate::types::SourceType;
 
 #[derive(Parser)]
 #[command(author, version, about)]

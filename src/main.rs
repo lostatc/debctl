@@ -5,11 +5,11 @@
 mod cli;
 mod command;
 mod error;
-mod format;
 mod key;
 mod option;
 mod parse;
 mod source;
+mod types;
 
 use std::process::ExitCode;
 

@@ -7,7 +7,8 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::error::Error;
-use crate::source::{SigningKey, SourceType};
+use crate::source::SigningKey;
+use crate::types::SourceType;
 
 /// The name of an option in a source file.
 ///
