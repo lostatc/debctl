@@ -60,9 +60,12 @@ fn probe_is_key_armored(file: &mut impl Read) -> eyre::Result<bool> {
     let mut first_line = String::new();
     let mut reader = BufReader::new(file);
 
-    reader.read_line(&mut first_line)?;
-
-    Ok(PGP_ARMOR_REGEX.is_match(&first_line))
+    match reader.read_line(&mut first_line) {
+        Ok(_) => Ok(PGP_ARMOR_REGEX.is_match(&first_line)),
+        // The file is not valid UTF-8, meaning it can't be armored.
+        Err(err) if err.kind() == io::ErrorKind::InvalidData => Ok(false),
+        Err(err) => bail!(err),
+    }
 }
 
 /// The encoding of a PGP key.
@@ -108,12 +111,25 @@ fn encode_key(file: &mut File, action: KeyEncoding) -> eyre::Result<File> {
     Ok(dearmored_file)
 }
 
+/// Ensure the given directory exists.
+fn ensure_dir_exists(dir: &Path) -> eyre::Result<()> {
+    match fs::create_dir_all(dir) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
+        Err(err) => Err(err).wrap_err("failed creating directory"),
+    }
+}
+
 /// Open the destination file to install the key to.
 fn open_key_destination(path: &Path) -> eyre::Result<File> {
+    if let Some(keyring_dir) = path.parent() {
+        ensure_dir_exists(keyring_dir).wrap_err("failed creating keyring directory")?;
+    }
+
     match File::create(path) {
         Ok(file) => Ok(file),
         Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
-        Err(err) => Err(err).wrap_err("failed opening destination file for writing")?,
+        Err(err) => Err(err).wrap_err("failed opening destination key file for writing")?,
     }
 }
 
@@ -143,19 +159,11 @@ fn change_key_encoding(mut key_file: File, action: KeyEncoding) -> eyre::Result<
     Ok(encoded_key)
 }
 
-fn ensure_dir_exists(keyring_dir: &Path) -> eyre::Result<()> {
-    match fs::create_dir_all(keyring_dir) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => bail!(Error::PermissionDenied),
-        Err(err) => Err(err).wrap_err("failed creating directory"),
-    }
-}
-
 /// Download a singing key from a keyserver and return it.
 fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str) -> eyre::Result<File> {
     // This file will be the temporary keyring we will store the key in when we initially fetch it
     // from the keyserver. This is important because GPG doesn't allow us to read the key directly
-    // to stdout; we must store it in a keyring.
+    // to stdout; we *must* store it in a keyring.
     let temp_keyring =
         tempfile::NamedTempFile::new().wrap_err("failed creating temporary keyring file")?;
 
@@ -227,7 +235,7 @@ fn fetch_key_from_keyserver(fingerprint: &str, keyserver: &str) -> eyre::Result<
 }
 
 impl KeyLocation {
-    /// Get the signing key at this location.
+    /// Get the bytes of the signing key at this location.
     fn get_key(&self) -> eyre::Result<File> {
         match self {
             Self::Download { url } => {
@@ -248,10 +256,6 @@ impl KeyLocation {
 
     /// Install the signing key at this location to `dest`.
     pub fn install(&self, dest: &Path) -> eyre::Result<()> {
-        if let Some(keyring_dir) = dest.parent() {
-            ensure_dir_exists(keyring_dir).wrap_err("failed creating keyring directory")?;
-        }
-
         let key_file = self.get_key().wrap_err("failed getting signing key")?;
 
         let mut dearmored_key = change_key_encoding(key_file, KeyEncoding::Binary)?;
