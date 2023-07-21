@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -21,6 +21,14 @@ pub enum SigningKey {
     Inline { value: OptionValue },
 }
 
+/// What to do if a source file already exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverwriteAction {
+    Overwrite,
+    Append,
+    Fail,
+}
+
 /// A repository source.
 #[derive(Debug)]
 pub struct RepoSource {
@@ -29,7 +37,7 @@ pub struct RepoSource {
     key: Option<KeyLocation>,
     keyring_dir: PathBuf,
     inline_key: bool,
-    overwrite: bool,
+    action: OverwriteAction,
 }
 
 /// Return the current distro version codename.
@@ -122,7 +130,13 @@ impl RepoSource {
             key,
             keyring_dir,
             inline_key: args.key.inline_key,
-            overwrite: args.overwrite.overwrite,
+            action: if args.overwrite.overwrite {
+                OverwriteAction::Overwrite
+            } else if args.overwrite.append {
+                OverwriteAction::Append
+            } else {
+                OverwriteAction::Fail
+            },
         })
     }
 
@@ -146,7 +160,13 @@ impl RepoSource {
             key,
             keyring_dir,
             inline_key: args.key.inline_key,
-            overwrite: args.overwrite.overwrite,
+            action: if args.overwrite.overwrite {
+                OverwriteAction::Overwrite
+            } else if args.overwrite.append {
+                OverwriteAction::Append
+            } else {
+                OverwriteAction::Fail
+            },
         })
     }
 
@@ -175,29 +195,39 @@ impl RepoSource {
         Ok(())
     }
 
-    /// Open the repo source file, truncating if the user decided to overwrite.
+    /// Open the repo source file.
     fn open_source_file(&self, path: &Path) -> eyre::Result<File> {
-        if self.overwrite {
-            match File::create(path) {
-                Ok(file) => Ok(file),
-                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
-                    bail!(Error::PermissionDenied)
-                }
-                Err(err) => bail!(err),
+        let result = match self.action {
+            OverwriteAction::Overwrite => OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .read(true)
+                .write(true)
+                .open(path),
+            OverwriteAction::Append => OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .read(true)
+                .write(true)
+                .open(path),
+            OverwriteAction::Fail => OpenOptions::new()
+                .create_new(true)
+                .read(true)
+                .write(true)
+                .open(path),
+        };
+
+        match result {
+            Ok(file) => Ok(file),
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                bail!(Error::SourceFileAlreadyExists {
+                    path: path.to_owned()
+                })
             }
-        } else {
-            match OpenOptions::new().create_new(true).write(true).open(path) {
-                Ok(file) => Ok(file),
-                Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                    bail!(Error::SourceFileAlreadyExists {
-                        path: path.to_owned()
-                    })
-                }
-                Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
-                    bail!(Error::PermissionDenied)
-                }
-                Err(err) => bail!(err),
+            Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                bail!(Error::PermissionDenied)
             }
+            Err(err) => bail!(err),
         }
     }
 
@@ -205,11 +235,21 @@ impl RepoSource {
     pub fn install(&self) -> eyre::Result<()> {
         let mut file = self.open_source_file(&self.path())?;
 
+        if self.action == OverwriteAction::Append {
+            let last_line = BufReader::new(&mut file).lines().last().transpose()?;
+
+            file.seek(SeekFrom::End(0))?;
+
+            if let Some(line) = last_line {
+                if !line.trim().is_empty() {
+                    writeln!(&mut file)?;
+                }
+            }
+        }
+
         for (key, value) in self.options.options() {
             writeln!(&mut file, "{}: {}", key.to_deb822(), value.to_deb822())?;
         }
-
-        file.flush()?;
 
         Ok(())
     }

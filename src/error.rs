@@ -14,7 +14,7 @@ pub enum Error {
     #[error("This option is not in `key=value` format: `{option}`.")]
     MalformedOption { option: String },
 
-    #[error("This source file already exists: `{path}`.\n\nYou can either overwrite it with `--overwrite` or pick a different name for the source.")]
+    #[error("This source file already exists: `{path}`.\n\nYou can either:\n* Overwrite it with `--overwrite`\n* Append to it with `--append`\n* Pick a different name for the source")]
     SourceFileAlreadyExists { path: PathBuf },
 
     #[error("You must run this command as root.")]
@@ -29,7 +29,7 @@ pub enum Error {
     #[error("Failed to download key from URL: `{url}`.\n\n{reason}")]
     KeyDownloadFailed { url: String, reason: String },
 
-    #[error("You cannot pass the `Signed-By` option without also passing `--force-no-key`.")]
+    #[error("You cannot pass the `Signed-By` option without also passing `--force-no-key`.\n\nYou should typically use `--key` to specify the signing key.")]
     ConflictingKeyLocations,
 
     #[error("Failed to fetch key from the keyserver: `{id}`.\n\n{reason}")]

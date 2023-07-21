@@ -44,7 +44,8 @@ pub struct SigningKeyArgs {
     #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
     pub keyring_dir: String,
 
-    /// Inline the repository signing key into the source file
+    /// Inline the repository signing key into the source file instead of installing it to a
+    /// separate file
     #[arg(long)]
     pub inline_key: bool,
 }
@@ -64,10 +65,15 @@ pub struct DisabledArgs {
 }
 
 #[derive(Args)]
+#[group(required = false, multiple = false)]
 pub struct OverwriteArgs {
     /// Overwrite the source file if it already exists.
     #[arg(long)]
     pub overwrite: bool,
+
+    /// Append to the source file if it already exists.
+    #[arg(short, long)]
+    pub append: bool,
 }
 
 #[derive(Args)]
