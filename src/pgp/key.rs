@@ -9,9 +9,10 @@ use regex::Regex;
 use reqwest::Url;
 
 use crate::error::Error;
+use crate::stdio::{read_stderr, read_stdout, wait, write_stdin};
 
+use super::command::{gpg_command, map_gpg_err};
 use super::keyring::Keyring;
-use super::stdio::{gpg_command, map_gpg_err, read_stderr, read_stdout, wait, write_stdin};
 
 /// A regex which matches the first line of an ASCII-armored public PGP key.
 static PGP_ARMOR_REGEX: Lazy<Regex> =
@@ -241,7 +242,7 @@ impl Key {
 
         wait(process, stderr_handle)?;
 
-        let dearmored_key = stdout_handle.join().unwrap()?;
+        let dearmored_key = stdout_handle.join()?;
 
         Ok(Self {
             key: dearmored_key,
@@ -289,7 +290,7 @@ impl Key {
 
         wait(process, stderr_handle)?;
 
-        let command_output = stdout_handle.join().unwrap()?;
+        let command_output = stdout_handle.join()?;
 
         let key_id = ColonOutput::new(&command_output)?
             .public_key_id()

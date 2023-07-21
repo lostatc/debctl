@@ -4,9 +4,10 @@ use eyre::{bail, WrapErr};
 use tempfile::NamedTempFile;
 
 use crate::error::Error;
+use crate::stdio::{read_stderr, read_stdout, wait, write_stdin};
 
+use super::command::{gpg_command, map_gpg_err};
 use super::key::{Key, KeyEncoding, KeyId};
-use super::stdio::{gpg_command, map_gpg_err, read_stderr, read_stdout, wait, write_stdin};
 
 /// A PGP key in a keyring.
 #[derive(Debug)]
@@ -96,7 +97,7 @@ impl Keyring {
 
         wait(process, stderr_handle)?;
 
-        let key_bytes = stdout_handle.join().unwrap()?;
+        let key_bytes = stdout_handle.join()?;
 
         Ok(Key::new(key_bytes, encoding, Some(key.id)))
     }

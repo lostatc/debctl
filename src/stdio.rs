@@ -1,58 +1,55 @@
 use std::io::{self, Read};
-use std::process::{Child, Command};
+use std::process::Child;
 use std::thread::JoinHandle;
 
-use eyre::{bail, eyre, WrapErr};
-
-use crate::error::Error;
-
-/// Run a GnuPG command.
-pub fn gpg_command() -> Command {
-    Command::new("gpg")
-}
-
-/// Handle errors running the gpg command.
-pub fn map_gpg_err(err: io::Error) -> eyre::Report {
-    if err.kind() == io::ErrorKind::NotFound {
-        return eyre!(Error::GnupgNotFound);
-    }
-
-    eyre!(err)
-}
+use eyre::{bail, WrapErr};
 
 /// Write to a command's stdin and close the stream.
-pub fn write_stdin(process: &mut Child, src: &mut impl Read) -> eyre::Result<()> {
+pub fn write_stdin(process: &mut Child, mut src: impl Read) -> eyre::Result<()> {
     let mut stdin = process.stdin.take().unwrap();
 
-    io::copy(src, &mut stdin).wrap_err("failed writing to stdin")?;
+    io::copy(&mut src, &mut stdin).wrap_err("failed writing to stdin")?;
 
     // This implicitly drops `stdin`, closing the stream.
 
     Ok(())
 }
 
-type StdoutHandle = JoinHandle<eyre::Result<Vec<u8>>>;
+/// A handle for collecting a command's stdout in a separate thread.
+#[derive(Debug)]
+pub struct StdoutHandle(JoinHandle<eyre::Result<Vec<u8>>>);
+
+impl StdoutHandle {
+    /// Join the thread and return the command's stdout.
+    pub fn join(self) -> eyre::Result<Vec<u8>> {
+        self.0
+            .join()
+            .expect("thread panicked reading command stdout")
+    }
+}
 
 /// Start consuming a command's stdout in a new thread..
 pub fn read_stdout(process: &mut Child) -> StdoutHandle {
     let mut stdout = process.stdout.take().unwrap();
 
-    std::thread::spawn(move || {
+    StdoutHandle(std::thread::spawn(move || {
         let mut output = Vec::new();
 
         io::copy(&mut stdout, &mut output).wrap_err("failed reading from stdout")?;
 
         Ok(output)
-    })
+    }))
 }
 
-type StderrHandle = JoinHandle<eyre::Result<String>>;
+/// A handle for collecting a command's stderr in a separate thread.
+#[derive(Debug)]
+pub struct StderrHandle(JoinHandle<eyre::Result<String>>);
 
 /// Start consuming a command's stderr in a new thread.
 pub fn read_stderr(process: &mut Child) -> StderrHandle {
     let mut stderr = process.stderr.take().unwrap();
 
-    std::thread::spawn(move || {
+    StderrHandle(std::thread::spawn(move || {
         let mut output = String::new();
 
         stderr
@@ -60,14 +57,17 @@ pub fn read_stderr(process: &mut Child) -> StderrHandle {
             .wrap_err("failed reading from stderr")?;
 
         Ok(output)
-    })
+    }))
 }
 
 /// Wait for the command to finish and return an error if it failed.
 pub fn wait(mut process: Child, handle: StderrHandle) -> eyre::Result<()> {
     let status = process.wait()?;
 
-    let err_msg = handle.join().unwrap()?;
+    let err_msg = handle
+        .0
+        .join()
+        .expect("thread panicked reading command stderr")?;
 
     if !status.success() {
         bail!(err_msg);

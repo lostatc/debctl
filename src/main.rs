@@ -10,6 +10,7 @@ mod option;
 mod parse;
 mod pgp;
 mod source;
+mod stdio;
 mod types;
 
 use std::process::ExitCode;
