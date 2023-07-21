@@ -15,7 +15,7 @@ pub enum Error {
     MalformedOption { option: String },
 
     #[error("This source file already exists: `{path}`.\n\nYou can either:\n* Overwrite it with `--overwrite`\n* Append to it with `--append`\n* Pick a different name for the source")]
-    SourceFileAlreadyExists { path: PathBuf },
+    NewSourceFileAlreadyExists { path: PathBuf },
 
     #[error("You must run this command as root.")]
     PermissionDenied,
@@ -40,4 +40,10 @@ pub enum Error {
 
     #[error("This is not a valid PGP key: `{key}`.")]
     NotPgpKey { key: String },
+
+    #[error("There is no source file here: `{path}`.")]
+    SourceFileNotFound { path: PathBuf },
+
+    #[error("There is already a file here: `{path}`.")]
+    ConvertedSourceFileAlreadyExists { path: PathBuf },
 }
