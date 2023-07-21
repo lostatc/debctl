@@ -14,8 +14,8 @@ pub struct Cli {
 pub struct KeyLocationArgs {
     /// The public signing key for the repo
     ///
-    /// This accepts the URL or local file path of a PGP key, in either GPG or armored format. The
-    /// key is downloaded and installed to the directory specified by --keyring-dir.
+    /// This accepts the URL or local file path of a PGP key, in either binary or armored format.
+    /// The key is downloaded and installed to the directory specified by --keyring-dir.
     ///
     /// If you pass --keyserver, this is the key fingerprint.
     #[arg(short, long)]

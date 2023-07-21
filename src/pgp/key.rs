@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use eyre::{bail, WrapErr};
 use once_cell::sync::Lazy;
@@ -11,6 +11,7 @@ use reqwest::Url;
 use crate::net::download_file;
 
 use super::keyring::Keyring;
+use super::stdio::{gpg_command, read_stderr, read_stdout, wait, write_stdin};
 
 /// A regex which matches the first line of an ASCII-armored public PGP key.
 static PGP_ARMOR_REGEX: Lazy<Regex> =
@@ -19,9 +20,9 @@ static PGP_ARMOR_REGEX: Lazy<Regex> =
 /// Return whether the key in `file` is armored.
 ///
 /// This probes the key's contents to determine if it's armored.
-fn probe_key_encoding(file: &mut impl Read) -> eyre::Result<KeyEncoding> {
+fn probe_key_encoding(key: &mut Vec<u8>) -> eyre::Result<KeyEncoding> {
     let mut first_line = String::new();
-    let mut reader = BufReader::new(file);
+    let mut reader = BufReader::new(key.as_slice());
 
     match reader.read_line(&mut first_line) {
         Ok(_) => {
@@ -48,14 +49,16 @@ impl ColonOutput {
     const KEY_ID_INDEX: usize = 4;
 
     /// Create a new instance from a gpg command's stdout.
-    pub fn new(output: &str) -> Self {
+    pub fn new(output: &[u8]) -> eyre::Result<Self> {
         let mut lines = Vec::new();
 
-        for line in output.lines() {
+        for line_result in output.lines() {
+            let line = line_result.wrap_err("error decoding command output")?;
+
             lines.push(line.split(':').map(ToString::to_string).collect::<Vec<_>>());
         }
 
-        Self { lines }
+        Ok(Self { lines })
     }
 
     /// Get the key ID of the public key.
@@ -105,27 +108,30 @@ pub enum KeyEncoding {
 /// A PGP key in a file.
 #[derive(Debug)]
 pub struct Key {
-    file: File,
+    key: Vec<u8>,
     encoding: KeyEncoding,
     id: Option<KeyId>,
 }
 
 impl Key {
-    pub(crate) fn new(file: File, encoding: KeyEncoding, id: Option<KeyId>) -> Self {
-        Self { file, encoding, id }
+    pub(crate) fn new(key: Vec<u8>, encoding: KeyEncoding, id: Option<KeyId>) -> Self {
+        Self { key, encoding, id }
     }
 
     /// Get a key from a file path.
     pub fn from_file(path: &Path) -> eyre::Result<Self> {
         let mut file = File::open(path).wrap_err("failed opening local key file for reading")?;
+        let mut key = Vec::new();
 
-        file.seek(SeekFrom::Start(0))?;
+        // TODO: Check that this is a valid PGP key before reading it into memory.
+        file.read_to_end(&mut key)
+            .wrap_err("failed reading key from vile")?;
 
         let encoding =
-            probe_key_encoding(&mut file).wrap_err("failed probing if PGP key is armored")?;
+            probe_key_encoding(&mut key).wrap_err("failed probing if PGP key is armored")?;
 
         Ok(Self {
-            file,
+            key,
             encoding,
             id: None,
         })
@@ -134,14 +140,19 @@ impl Key {
     /// Download a key from `url`.
     pub fn from_url(url: &Url) -> eyre::Result<Self> {
         let mut file = download_file(url).wrap_err("failed downloading PGP key")?;
+        let mut key = Vec::new();
 
         file.seek(SeekFrom::Start(0))?;
 
+        // TODO: Check that this is a valid PGP key before reading it into memory.
+        file.read_to_end(&mut key)
+            .wrap_err("failed reading key from vile")?;
+
         let encoding =
-            probe_key_encoding(&mut file).wrap_err("failed probing if PGP key is armored")?;
+            probe_key_encoding(&mut key).wrap_err("failed probing if PGP key is armored")?;
 
         Ok(Self {
-            file,
+            key,
             encoding,
             id: None,
         })
@@ -153,49 +164,35 @@ impl Key {
     }
 
     /// Dearmor this key.
-    pub fn dearmor(mut self) -> eyre::Result<Self> {
+    pub fn dearmor(self) -> eyre::Result<Self> {
         if self.encoding == KeyEncoding::Binary {
             return Ok(self);
         }
 
-        let mut process = Command::new("gpg")
+        let mut process = gpg_command()
             .arg("--dearmor")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn()
-            .wrap_err("failed to execute gpg command")?;
+            .stderr(Stdio::piped())
+            .spawn()?;
 
-        let mut stdout = process.stdout.take().unwrap();
-        let mut stdin = process.stdin.take().unwrap();
+        let stdout_handle = read_stdout(&mut process);
+        let stderr_handle = read_stderr(&mut process);
 
-        let handle = std::thread::spawn(move || -> eyre::Result<File> {
-            let mut dearmored_file = tempfile::tempfile()?;
+        write_stdin(&mut process, &mut self.key.as_slice())?;
 
-            io::copy(&mut stdout, &mut dearmored_file)?;
+        wait(process, stderr_handle)?;
 
-            Ok(dearmored_file)
-        });
-
-        self.file.seek(SeekFrom::Start(0))?;
-
-        io::copy(&mut self.file, &mut stdin)?;
-
-        drop(stdin);
-
-        process.wait()?;
-
-        let dearmored_file = handle
-            .join()
-            .expect("thread panicked writing stdout to file")?;
+        let dearmored_key = stdout_handle.join().unwrap()?;
 
         Ok(Self {
-            file: dearmored_file,
+            key: dearmored_key,
             encoding: KeyEncoding::Binary,
             id: self.id,
         })
     }
 
-    /// Enarmor this key.
+    /// Armor this key.
     pub fn enarmor(mut self) -> eyre::Result<Self> {
         if self.encoding == KeyEncoding::Armored {
             return Ok(self);
@@ -218,42 +215,26 @@ impl Key {
             return Ok(id.clone());
         }
 
-        let mut process = Command::new("gpg")
+        let mut process = gpg_command()
             .arg("--show-keys")
             .arg("--with-colons")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .spawn()
-            .wrap_err("failed to execute gpg command")?;
+            .stderr(Stdio::piped())
+            .spawn()?;
 
-        let mut stdout = process.stdout.take().unwrap();
-        let mut stdin = process.stdin.take().unwrap();
+        let stdout_handle = read_stdout(&mut process);
+        let stderr_handle = read_stderr(&mut process);
 
-        let handle = std::thread::spawn(move || -> eyre::Result<String> {
-            let mut stdout_buf = String::new();
+        write_stdin(&mut process, &mut self.key.as_slice())?;
 
-            stdout
-                .read_to_string(&mut stdout_buf)
-                .wrap_err("error reading command stdout")?;
+        wait(process, stderr_handle)?;
 
-            Ok(stdout_buf)
-        });
+        let command_output = stdout_handle.join().unwrap()?;
 
-        self.file.seek(SeekFrom::Start(0))?;
-
-        io::copy(&mut self.file, &mut stdin)?;
-
-        drop(stdin);
-
-        process.wait()?;
-
-        let command_output = handle
-            .join()
-            .expect("thread panicked writing stdout to file")?;
-
-        let key_id = ColonOutput::new(&command_output)
+        let key_id = ColonOutput::new(&command_output)?
             .public_key_id()
-            .wrap_err("failed parsing gpg colon output")?;
+            .wrap_err("failed parsing gpg output")?;
 
         self.id = Some(key_id.clone());
 
@@ -261,14 +242,8 @@ impl Key {
     }
 }
 
-impl Read for Key {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.file.read(buf)
-    }
-}
-
-impl Seek for Key {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.file.seek(pos)
+impl AsRef<[u8]> for Key {
+    fn as_ref(&self) -> &[u8] {
+        self.key.as_slice()
     }
 }

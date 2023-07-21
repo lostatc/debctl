@@ -1,13 +1,12 @@
-use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
-use eyre::{bail, eyre, WrapErr};
+use eyre::{bail, WrapErr};
 use tempfile::NamedTempFile;
 
 use crate::error::Error;
 
 use super::key::{Key, KeyEncoding, KeyId};
+use super::stdio::{gpg_command, read_stderr, read_stdout, wait, write_stdin};
 
 /// A PGP key in a keyring.
 #[derive(Debug)]
@@ -31,7 +30,7 @@ impl Keyring {
 
     /// Import a key into this keyring from a keyserver.
     pub fn recv_key(&mut self, keyserver: &str, id: KeyId) -> eyre::Result<KeyringKey> {
-        let output = Command::new("gpg")
+        let output = gpg_command()
             .arg("--no-default-keyring")
             .arg("--keyring")
             .arg(self.file.path().as_os_str())
@@ -39,8 +38,7 @@ impl Keyring {
             .arg(keyserver)
             .arg("--recv-keys")
             .arg(id.as_ref())
-            .output()
-            .wrap_err("failed to execute gpg command")?;
+            .output()?;
 
         if !output.status.success() {
             bail!(Error::KeyserverFetchFailed {
@@ -55,33 +53,28 @@ impl Keyring {
 
     /// Import a key into this keyring.
     pub fn import(&mut self, key: &mut Key) -> eyre::Result<KeyringKey> {
-        let mut process = Command::new("gpg")
+        let mut process = gpg_command()
             .arg("--no-default-keyring")
             .arg("--keyring")
             .arg(self.file.path().as_os_str())
             .arg("--import")
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .wrap_err("failed to execute gpg command")?;
+            .stderr(Stdio::piped())
+            .spawn()?;
 
-        let mut stdin = process.stdin.take().unwrap();
+        let stderr_handle = read_stderr(&mut process);
 
-        key.seek(SeekFrom::Start(0))?;
+        write_stdin(&mut process, &mut key.as_ref())?;
 
-        io::copy(key, &mut stdin)?;
-
-        drop(stdin);
-
-        process.wait()?;
+        wait(process, stderr_handle)?;
 
         Ok(KeyringKey { id: key.id()? })
     }
 
     /// Export a key from this keyring.
     pub fn export(&mut self, key: KeyringKey, encoding: KeyEncoding) -> eyre::Result<Key> {
-        let mut process = Command::new("gpg")
+        let mut process = gpg_command()
             .arg("--no-default-keyring")
             .arg("--keyring")
             .arg(self.file.path().as_os_str())
@@ -93,43 +86,15 @@ impl Keyring {
             .arg(key.id.as_ref())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .wrap_err("failed to execute gpg command")?;
+            .spawn()?;
 
-        let mut stdout = process.stdout.take().unwrap();
-        let mut stderr = process.stderr.take().unwrap();
+        let stdout_handle = read_stdout(&mut process);
+        let stderr_handle = read_stderr(&mut process);
 
-        let stdout_handle = std::thread::spawn(move || -> eyre::Result<File> {
-            let mut key_file = tempfile::tempfile()?;
+        wait(process, stderr_handle)?;
 
-            io::copy(&mut stdout, &mut key_file).wrap_err("filed reading stdout")?;
+        let key_bytes = stdout_handle.join().unwrap()?;
 
-            Ok(key_file)
-        });
-
-        let stderr_handle = std::thread::spawn(move || -> eyre::Result<String> {
-            let mut stderr_msg = String::new();
-
-            stderr
-                .read_to_string(&mut stderr_msg)
-                .wrap_err("failed reading stderr")?;
-
-            Ok(stderr_msg)
-        });
-
-        let status = process.wait()?;
-
-        let key_file = stdout_handle
-            .join()
-            .expect("thread panicked writing stdout to file")?;
-        let err_msg = stderr_handle
-            .join()
-            .expect("thread panicked reading stderr")?;
-
-        if !status.success() {
-            return Err(eyre!(err_msg).wrap_err("failed to export key from keyring"));
-        }
-
-        Ok(Key::new(key_file, encoding, Some(key.id)))
+        Ok(Key::new(key_bytes, encoding, Some(key.id)))
     }
 }

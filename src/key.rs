@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
+use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use eyre::{bail, WrapErr};
@@ -45,7 +45,7 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
 }
 
 impl KeyLocation {
-    /// Get the bytes of the signing key at this location.
+    /// Get signing key at this location.
     fn get_key(&self) -> eyre::Result<Key> {
         match self {
             Self::Download { url } => {
@@ -72,13 +72,11 @@ impl KeyLocation {
     pub fn install(&self, dest: &Path) -> eyre::Result<()> {
         let key = self.get_key().wrap_err("failed getting signing key")?;
 
-        let mut dearmored_key = key.dearmor().wrap_err("failed dearmoring signing key")?;
+        let dearmored_key = key.dearmor().wrap_err("failed dearmoring signing key")?;
 
         let mut dest_file = open_key_destination(dest)?;
 
-        dearmored_key.seek(SeekFrom::Start(0))?;
-
-        io::copy(&mut dearmored_key, &mut dest_file)
+        io::copy(&mut dearmored_key.as_ref(), &mut dest_file)
             .wrap_err("failed copying key to destination")?;
 
         Ok(())
@@ -88,12 +86,10 @@ impl KeyLocation {
     pub fn to_value(&self) -> eyre::Result<OptionValue> {
         let key = self.get_key().wrap_err("failed getting signing key")?;
 
-        let mut armored_key = key.enarmor().wrap_err("failed armoring signing key")?;
-
-        armored_key.seek(SeekFrom::Start(0))?;
+        let armored_key = key.enarmor().wrap_err("failed armoring signing key")?;
 
         Ok(OptionValue::Multiline(
-            BufReader::new(armored_key)
+            BufReader::new(armored_key.as_ref())
                 .lines()
                 .collect::<Result<Vec<_>, _>>()?,
         ))
