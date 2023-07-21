@@ -24,7 +24,7 @@ pub struct KeyLocationArgs {
     /// Do not install the public signing key for the repo
     ///
     /// Instead, all keys in the trusted keyrings will be considered valid signers for the
-    /// repository, which is less secure.
+    /// repository, which is less secure and not recommended.
     #[arg(long)]
     pub force_no_key: bool,
 }
