@@ -220,7 +220,7 @@ impl RepoSource {
         match result {
             Ok(file) => Ok(file),
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                bail!(Error::SourceFileAlreadyExists {
+                bail!(Error::NewSourceFileAlreadyExists {
                     path: path.to_owned()
                 })
             }
