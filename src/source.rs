@@ -240,6 +240,8 @@ impl RepoSource {
 
             file.seek(SeekFrom::End(0))?;
 
+            // Stanzas in a deb822 file must have a blank line between them, but we don't want to
+            // add unnecessary blank lines if the file already ends with one.
             if let Some(line) = last_line {
                 if !line.trim().is_empty() {
                     writeln!(&mut file)?;
