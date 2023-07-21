@@ -122,14 +122,14 @@ impl RepoSource {
         }
 
         let key = parse_key_args(&args.key)?;
-        let keyring_dir = Path::new(&args.key.keyring_dir).to_path_buf();
+        let keyring_dir = Path::new(&args.key.destination.keyring_dir).to_path_buf();
 
         Ok(Self {
             name: args.name.clone(),
             options,
             key,
             keyring_dir,
-            inline_key: args.key.inline_key,
+            inline_key: args.key.destination.inline_key,
             action: if args.overwrite.overwrite {
                 OverwriteAction::Overwrite
             } else if args.overwrite.append {
@@ -152,14 +152,14 @@ impl RepoSource {
         }
 
         let key = parse_key_args(&args.key)?;
-        let keyring_dir = Path::new(&args.key.keyring_dir).to_path_buf();
+        let keyring_dir = Path::new(&args.key.destination.keyring_dir).to_path_buf();
 
         Ok(Self {
             name: args.name.clone(),
             options,
             key,
             keyring_dir,
-            inline_key: args.key.inline_key,
+            inline_key: args.key.destination.inline_key,
             action: if args.overwrite.overwrite {
                 OverwriteAction::Overwrite
             } else if args.overwrite.append {

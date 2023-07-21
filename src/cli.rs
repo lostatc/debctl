@@ -30,6 +30,19 @@ pub struct KeyLocationArgs {
 }
 
 #[derive(Args)]
+#[group(required = false, multiple = false)]
+pub struct KeyDestinationArgs {
+    /// The directory to install the repository signing key to
+    #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
+    pub keyring_dir: String,
+
+    /// Inline the repository signing key into the source file instead of installing it to a
+    /// separate file
+    #[arg(long)]
+    pub inline_key: bool,
+}
+
+#[derive(Args)]
 pub struct SigningKeyArgs {
     #[command(flatten)]
     pub location: KeyLocationArgs,
@@ -40,14 +53,8 @@ pub struct SigningKeyArgs {
     #[arg(long, value_name = "URL")]
     pub keyserver: Option<String>,
 
-    /// The directory to install the repository signing key to
-    #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
-    pub keyring_dir: String,
-
-    /// Inline the repository signing key into the source file instead of installing it to a
-    /// separate file
-    #[arg(long)]
-    pub inline_key: bool,
+    #[command(flatten)]
+    pub destination: KeyDestinationArgs,
 }
 
 #[derive(Args)]
