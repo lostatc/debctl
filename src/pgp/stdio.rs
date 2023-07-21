@@ -2,11 +2,22 @@ use std::io::{self, Read};
 use std::process::{Child, Command};
 use std::thread::JoinHandle;
 
-use eyre::{bail, WrapErr};
+use eyre::{bail, eyre, WrapErr};
+
+use crate::error::Error;
 
 /// Run a GnuPG command.
 pub fn gpg_command() -> Command {
     Command::new("gpg")
+}
+
+/// Handle errors running the gpg command.
+pub fn map_gpg_err(err: io::Error) -> eyre::Report {
+    if err.kind() == io::ErrorKind::NotFound {
+        return eyre!(Error::GnupgNotFound);
+    }
+
+    eyre!(err)
 }
 
 /// Write to a command's stdin and close the stream.

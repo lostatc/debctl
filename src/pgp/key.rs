@@ -11,7 +11,7 @@ use reqwest::Url;
 use crate::net::download_file;
 
 use super::keyring::Keyring;
-use super::stdio::{gpg_command, read_stderr, read_stdout, wait, write_stdin};
+use super::stdio::{gpg_command, map_gpg_err, read_stderr, read_stdout, wait, write_stdin};
 
 /// A regex which matches the first line of an ASCII-armored public PGP key.
 static PGP_ARMOR_REGEX: Lazy<Regex> =
@@ -174,7 +174,8 @@ impl Key {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .map_err(map_gpg_err)?;
 
         let stdout_handle = read_stdout(&mut process);
         let stderr_handle = read_stderr(&mut process);
@@ -221,7 +222,8 @@ impl Key {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .map_err(map_gpg_err)?;
 
         let stdout_handle = read_stdout(&mut process);
         let stderr_handle = read_stderr(&mut process);

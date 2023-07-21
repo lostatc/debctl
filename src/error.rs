@@ -34,4 +34,7 @@ pub enum Error {
 
     #[error("Failed to fetch key from the keyserver: `{id}`.\n\n{reason}")]
     KeyserverFetchFailed { id: String, reason: String },
+
+    #[error("Could not find `gpg` command on your `PATH`.\n\nIs GnuPG installed?")]
+    GnupgNotFound,
 }

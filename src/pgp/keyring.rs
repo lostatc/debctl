@@ -6,7 +6,7 @@ use tempfile::NamedTempFile;
 use crate::error::Error;
 
 use super::key::{Key, KeyEncoding, KeyId};
-use super::stdio::{gpg_command, read_stderr, read_stdout, wait, write_stdin};
+use super::stdio::{gpg_command, map_gpg_err, read_stderr, read_stdout, wait, write_stdin};
 
 /// A PGP key in a keyring.
 #[derive(Debug)]
@@ -38,7 +38,8 @@ impl Keyring {
             .arg(keyserver)
             .arg("--recv-keys")
             .arg(id.as_ref())
-            .output()?;
+            .output()
+            .map_err(map_gpg_err)?;
 
         if !output.status.success() {
             bail!(Error::KeyserverFetchFailed {
@@ -61,7 +62,8 @@ impl Keyring {
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .map_err(map_gpg_err)?;
 
         let stderr_handle = read_stderr(&mut process);
 
@@ -86,7 +88,8 @@ impl Keyring {
             .arg(key.id.as_ref())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+            .map_err(map_gpg_err)?;
 
         let stdout_handle = read_stdout(&mut process);
         let stderr_handle = read_stderr(&mut process);
