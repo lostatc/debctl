@@ -37,4 +37,7 @@ pub enum Error {
 
     #[error("Could not find `gpg` command on your `PATH`.\n\nIs GnuPG installed?")]
     GnupgNotFound,
+
+    #[error("This is not a valid PGP key: `{key}`.")]
+    NotPgpKey { key: String },
 }

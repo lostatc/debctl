@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::Url;
 
+use crate::error::Error;
 use crate::net::download_file;
 
 use super::keyring::Keyring;
@@ -20,9 +21,9 @@ static PGP_ARMOR_REGEX: Lazy<Regex> =
 /// Return whether the key in `file` is armored.
 ///
 /// This probes the key's contents to determine if it's armored.
-fn probe_key_encoding(key: &mut Vec<u8>) -> eyre::Result<KeyEncoding> {
+fn probe_key_encoding(key: impl Read) -> eyre::Result<KeyEncoding> {
     let mut first_line = String::new();
-    let mut reader = BufReader::new(key.as_slice());
+    let mut reader = BufReader::new(key);
 
     match reader.read_line(&mut first_line) {
         Ok(_) => {
@@ -36,6 +37,23 @@ fn probe_key_encoding(key: &mut Vec<u8>) -> eyre::Result<KeyEncoding> {
         Err(err) if err.kind() == io::ErrorKind::InvalidData => Ok(KeyEncoding::Binary),
         Err(err) => bail!(err),
     }
+}
+
+/// Return whether this is a valid PGP key.
+fn is_pgp_key(mut key: impl Read) -> eyre::Result<bool> {
+    let mut process = gpg_command()
+        .arg("--show-keys")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(map_gpg_err)?;
+
+    write_stdin(&mut process, &mut key)?;
+
+    let status = process.wait()?;
+
+    Ok(status.success())
 }
 
 /// The machine-readable output of a GnuPG command.
@@ -121,14 +139,24 @@ impl Key {
     /// Get a key from a file path.
     pub fn from_file(path: &Path) -> eyre::Result<Self> {
         let mut file = File::open(path).wrap_err("failed opening local key file for reading")?;
+
+        file.seek(SeekFrom::Start(0))?;
+
+        if !is_pgp_key(&file)? {
+            bail!(Error::NotPgpKey {
+                key: path.to_string_lossy().to_string(),
+            });
+        }
+
+        file.seek(SeekFrom::Start(0))?;
+
         let mut key = Vec::new();
 
-        // TODO: Check that this is a valid PGP key before reading it into memory.
         file.read_to_end(&mut key)
             .wrap_err("failed reading key from vile")?;
 
-        let encoding =
-            probe_key_encoding(&mut key).wrap_err("failed probing if PGP key is armored")?;
+        let encoding = probe_key_encoding(&mut key.as_slice())
+            .wrap_err("failed probing if PGP key is armored")?;
 
         Ok(Self {
             key,
@@ -140,16 +168,24 @@ impl Key {
     /// Download a key from `url`.
     pub fn from_url(url: &Url) -> eyre::Result<Self> {
         let mut file = download_file(url).wrap_err("failed downloading PGP key")?;
-        let mut key = Vec::new();
 
         file.seek(SeekFrom::Start(0))?;
 
-        // TODO: Check that this is a valid PGP key before reading it into memory.
+        if !is_pgp_key(&file)? {
+            bail!(Error::NotPgpKey {
+                key: url.to_string(),
+            });
+        }
+
+        file.seek(SeekFrom::Start(0))?;
+
+        let mut key = Vec::new();
+
         file.read_to_end(&mut key)
             .wrap_err("failed reading key from vile")?;
 
-        let encoding =
-            probe_key_encoding(&mut key).wrap_err("failed probing if PGP key is armored")?;
+        let encoding = probe_key_encoding(&mut key.as_slice())
+            .wrap_err("failed probing if PGP key is armored")?;
 
         Ok(Self {
             key,
