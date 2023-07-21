@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Args, Parser, Subcommand};
 
 use crate::types::SourceType;
@@ -86,6 +88,8 @@ pub struct OverwriteArgs {
 #[derive(Args)]
 pub struct New {
     /// A unique name for the source
+    ///
+    /// The source file is generated in /etc/apt/sources.list.d/ with this as its basename.
     pub name: String,
 
     /// The URIs of the repository
@@ -154,6 +158,8 @@ pub struct Add {
     pub line: String,
 
     /// A unique name for the source
+    ///
+    /// The source file is generated in /etc/apt/sources.list.d/ with this as its basename.
     #[arg(short, long)]
     pub name: String,
 
@@ -170,6 +176,51 @@ pub struct Add {
     pub overwrite: OverwriteArgs,
 }
 
+#[derive(Args)]
+pub struct DestArgs {
+    /// The name of the source file
+    ///
+    /// This looks for a file in /etc/apt/sources.list.d/ with this basename and replaces it.
+    #[arg(short, long)]
+    name: Option<String>,
+
+    /// The path of the single-line-style file to convert
+    ///
+    /// This can be `-` to read from stdin.
+    #[arg(
+        long = "in",
+        value_name = "PATH",
+        conflicts_with = "name",
+        requires = "out_path"
+    )]
+    in_path: Option<PathBuf>,
+
+    /// The path of the deb822 file to generate
+    ///
+    /// This can be `-` to write to stdout.
+    #[arg(
+        long = "out",
+        value_name = "PATH",
+        conflicts_with = "name",
+        requires = "in_path"
+    )]
+    out_path: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct Convert {
+    #[command(flatten)]
+    dest: DestArgs,
+
+    /// Backup the original `.list` file to `.list.bak`
+    #[arg(long)]
+    backup: bool,
+
+    /// Backup the original `.list` file to this path
+    #[arg(long, value_name = "PATH")]
+    backup_to: Option<PathBuf>,
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     /// Add a source by specifying its parameters
@@ -184,4 +235,9 @@ pub enum Commands {
     ///
     /// deb [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
     Add(Add),
+
+    /// Convert a single-line-style `.list` file to a deb822 `.sources` file
+    ///
+    /// You must pass either --name or both --in and --out.
+    Convert(Convert),
 }
