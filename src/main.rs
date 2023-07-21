@@ -6,7 +6,6 @@ mod cli;
 mod command;
 mod error;
 mod key;
-mod net;
 mod option;
 mod parse;
 mod pgp;
