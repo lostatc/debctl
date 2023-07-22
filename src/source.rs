@@ -26,6 +26,7 @@ fn key_path(keyring_dir: &Path, name: String) -> PathBuf {
 }
 
 impl KeyDestination {
+    /// Construct an instance from CLI args.
     pub fn from_args(args: &KeyDestinationArgs, name: &str) -> KeyDestination {
         if args.inline_key {
             KeyDestination::Inline
@@ -136,31 +137,33 @@ fn get_current_codename() -> eyre::Result<String> {
     Ok(String::from_utf8(stdout)?.trim().to_string())
 }
 
-/// Parse the CLI args to determine where we're fetching the singing key from.
-fn parse_key_args(args: &SigningKeyArgs) -> eyre::Result<Option<KeySource>> {
-    Ok(match (&args.location.key, &args.keyserver) {
-        (Some(key_location), Some(keyserver)) => Some(KeySource::Keyserver {
-            id: key_location.to_string(),
-            keyserver: keyserver.to_string(),
-        }),
-        (Some(key_location), None) => match Url::parse(key_location) {
-            Ok(url) => Some(KeySource::Download { url }),
-            Err(_) => {
-                let path = Path::new(&key_location);
+impl SigningKeyArgs {
+    /// Where we're fetching the signing key from.
+    pub fn key_source(&self) -> eyre::Result<Option<KeySource>> {
+        Ok(match (&self.location.key, &self.keyserver) {
+            (Some(key_location), Some(keyserver)) => Some(KeySource::Keyserver {
+                id: key_location.to_string(),
+                keyserver: keyserver.to_string(),
+            }),
+            (Some(key_location), None) => match Url::parse(key_location) {
+                Ok(url) => Some(KeySource::Download { url }),
+                Err(_) => {
+                    let path = Path::new(&key_location);
 
-                if path.exists() {
-                    Some(KeySource::File {
-                        path: path.to_path_buf(),
-                    })
-                } else {
-                    bail!(Error::InvalidKeyLocation {
-                        path: key_location.to_string()
-                    });
+                    if path.exists() {
+                        Some(KeySource::File {
+                            path: path.to_path_buf(),
+                        })
+                    } else {
+                        bail!(Error::InvalidKeyLocation {
+                            path: key_location.to_string()
+                        });
+                    }
                 }
-            }
-        },
-        (None, _) => None,
-    })
+            },
+            (None, _) => None,
+        })
+    }
 }
 
 impl SourceEntry {
@@ -190,8 +193,6 @@ impl SourceEntry {
             options.insert(KnownOptionName::RepolibName, description);
         }
 
-        let key = parse_key_args(&args.key)?;
-
         Ok(Self {
             file: SourceFile {
                 path: SourceFilePath::Installed {
@@ -200,7 +201,7 @@ impl SourceEntry {
                 kind: SourceFileKind::Deb822,
             },
             options,
-            key,
+            key: args.key.key_source()?,
         })
     }
 
@@ -215,8 +216,6 @@ impl SourceEntry {
             options.insert(KnownOptionName::RepolibName, description);
         }
 
-        let key = parse_key_args(&args.key)?;
-
         Ok(Self {
             file: SourceFile {
                 path: SourceFilePath::Installed {
@@ -225,7 +224,7 @@ impl SourceEntry {
                 kind: SourceFileKind::Deb822,
             },
             options,
-            key,
+            key: args.key.key_source()?,
         })
     }
 
