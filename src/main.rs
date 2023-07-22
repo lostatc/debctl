@@ -5,12 +5,13 @@
 mod cli;
 mod command;
 mod convert;
+mod entry;
 mod error;
+mod file;
 mod key;
 mod option;
 mod parse;
 mod pgp;
-mod source;
 mod stdio;
 mod types;
 

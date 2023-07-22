@@ -1,54 +1,19 @@
-use std::borrow::Cow;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
-use crate::cli::{Add, KeyDestinationArgs, New, OverwriteArgs, SigningKeyArgs};
+use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
 use crate::error::Error;
-use crate::key::KeySource;
-use crate::option::{KnownOptionName, OptionMap, OptionValue};
+use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
+use crate::key::{KeyDestination, KeySource, SigningKey};
+use crate::option::{KnownOptionName, OptionMap};
 use crate::parse::{parse_custom_option, parse_line_entry};
 
-/// The location to install a signing key to.
-#[derive(Debug)]
-pub enum KeyDestination {
-    File { path: PathBuf },
-    Inline,
-}
-
-/// The path of the signing key for a source entry.
-fn key_path(keyring_dir: &Path, name: String) -> PathBuf {
-    keyring_dir.join(format!("{}-archive-keyring.gpg", name))
-}
-
-impl KeyDestination {
-    /// Construct an instance from CLI args.
-    pub fn from_args(args: &KeyDestinationArgs, name: &str) -> KeyDestination {
-        if args.inline_key {
-            KeyDestination::Inline
-        } else {
-            KeyDestination::File {
-                path: key_path(&args.keyring_dir, name.to_owned()),
-            }
-        }
-    }
-}
-
-/// A repository signing key.
-#[derive(Debug)]
-pub enum SigningKey {
-    /// The key is stored in a separate file.
-    File { path: PathBuf },
-
-    /// The key is inlined in the source file.
-    Inline { value: OptionValue },
-}
-
-/// What to do if a source file already exists.
+/// What to do if a repo source file already exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverwriteAction {
     Overwrite,
@@ -57,7 +22,7 @@ pub enum OverwriteAction {
 }
 
 impl OverwriteArgs {
-    /// The `OverwriteAction` for these args.
+    /// What to do if a repo source file already exists.
     pub fn action(&self) -> OverwriteAction {
         if self.overwrite {
             OverwriteAction::Overwrite
@@ -65,54 +30,6 @@ impl OverwriteArgs {
             OverwriteAction::Append
         } else {
             OverwriteAction::Fail
-        }
-    }
-}
-
-/// The path of a repo source file.
-#[derive(Debug)]
-pub enum SourceFilePath {
-    /// A source file installed in the APT sources directory.
-    Installed { name: String },
-
-    /// A source file at an arbitrary file path.
-    File { path: PathBuf },
-}
-
-/// A kind of source file.
-#[derive(Debug, Clone, Copy)]
-pub enum SourceFileKind {
-    /// A single-line-style source file.
-    SingleLine,
-
-    /// A deb822-style source file.
-    Deb822,
-}
-
-/// A repo source file.
-#[derive(Debug)]
-pub struct SourceFile {
-    pub path: SourceFilePath,
-    pub kind: SourceFileKind,
-}
-
-impl SourceFile {
-    const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
-
-    /// The path of this source file.
-    pub fn path(&self) -> Cow<'_, Path> {
-        let extension = match self.kind {
-            SourceFileKind::SingleLine => "list",
-            SourceFileKind::Deb822 => "sources",
-        };
-
-        match &self.path {
-            SourceFilePath::Installed { name } => Cow::Owned(
-                [Self::SOURCES_DIR, &format!("{}.{}", name, extension)]
-                    .iter()
-                    .collect(),
-            ),
-            SourceFilePath::File { path } => Cow::Borrowed(path),
         }
     }
 }

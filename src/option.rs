@@ -7,15 +7,15 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::error::Error;
-use crate::source::SigningKey;
+use crate::key::SigningKey;
 use crate::types::SourceType;
 
-/// The name of an option in a source file.
+/// The name of an option in a source entry.
 ///
 /// These are the known, valid option names listed in the sources.list(5) man page.
 ///
 /// The order of the variants in this enum corresponds to the order the options will appear in
-/// source files.
+/// source entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, EnumIter)]
 pub enum KnownOptionName {
     RepolibName,
@@ -102,7 +102,7 @@ impl FromStr for KnownOptionName {
     }
 }
 
-/// The name of an option in a source file.
+/// The name of an option in a source entry.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OptionName {
     /// An option name listed in sources.list(5).
@@ -158,7 +158,7 @@ fn is_falsey(s: &str) -> bool {
     lowercase == "no" || lowercase == "false"
 }
 
-/// The value of an option in a source file.
+/// The value of an option in a source entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionValue {
     String(String),
@@ -223,7 +223,7 @@ impl From<bool> for OptionValue {
 impl OptionValue {
     /// Return whether this value is "empty".
     ///
-    /// Empty values are not included in the source file.
+    /// Empty values are not included in the source entry.
     pub fn is_empty(&self) -> bool {
         match self {
             OptionValue::String(value) => value.trim().is_empty(),

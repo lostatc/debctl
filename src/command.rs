@@ -1,5 +1,6 @@
 use crate::cli::{Add, Commands, Convert, New};
-use crate::source::{KeyDestination, SourceEntry};
+use crate::entry::SourceEntry;
+use crate::key::KeyDestination;
 
 fn new(args: New) -> eyre::Result<()> {
     let action = args.overwrite.action();
@@ -24,7 +25,7 @@ fn add(args: Add) -> eyre::Result<()> {
 }
 
 fn convert(_: Convert) -> eyre::Result<()> {
-    todo!()
+    unimplemented!()
 }
 
 impl Commands {

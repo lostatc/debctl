@@ -5,11 +5,37 @@ use std::path::{Path, PathBuf};
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
+use crate::cli::KeyDestinationArgs;
 use crate::error::Error;
 use crate::option::OptionValue;
 use crate::pgp::{Key, KeyEncoding, KeyId, Keyring};
 
-/// A location to acquire a public signing key from.
+/// The location to install a signing key to.
+#[derive(Debug)]
+pub enum KeyDestination {
+    /// Install it to a separate file.
+    File { path: PathBuf },
+
+    /// Inline it into the source entry.
+    Inline,
+}
+
+impl KeyDestination {
+    /// Create an instance from CLI args.
+    pub fn from_args(args: &KeyDestinationArgs, name: &str) -> Self {
+        if args.inline_key {
+            Self::Inline
+        } else {
+            Self::File {
+                path: args
+                    .keyring_dir
+                    .join(format!("{}-archive-keyring.gpg", name)),
+            }
+        }
+    }
+}
+
+/// A location to acquire a signing key from.
 #[derive(Debug)]
 pub enum KeySource {
     /// Download the key from a URL.
@@ -94,4 +120,14 @@ impl KeySource {
                 .collect::<Result<Vec<_>, _>>()?,
         ))
     }
+}
+
+/// A repository signing key.
+#[derive(Debug)]
+pub enum SigningKey {
+    /// The key is stored in a separate file.
+    File { path: PathBuf },
+
+    /// The key is inlined in the source entry.
+    Inline { value: OptionValue },
 }

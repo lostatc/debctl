@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use eyre::{bail, WrapErr};
 
 use crate::cli::{BackupArgs, Convert, ConvertDestArgs};
+use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::option::OptionMap;
 use crate::parse::parse_line_file;
-use crate::source::{SourceFile, SourceFileKind, SourceFilePath};
 
-/// How to back up the original file when converting a source file.
+/// How to back up the original file when converting a repo source file.
 #[derive(Debug)]
 enum BackupMode {
     Backup,
@@ -27,7 +27,7 @@ impl BackupMode {
     }
 }
 
-/// A converter for converting a source file.
+/// A converter for converting a repo source file.
 #[derive(Debug)]
 pub struct EntryConverter {
     options: Vec<OptionMap>,

@@ -38,7 +38,7 @@ pub struct KeyDestinationArgs {
     #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
     pub keyring_dir: PathBuf,
 
-    /// Inline the repository signing key into the source file instead of installing it to a
+    /// Inline the repository signing key into the source entry instead of installing it to a
     /// separate file
     #[arg(long)]
     pub inline_key: bool,
@@ -61,14 +61,14 @@ pub struct SigningKeyArgs {
 
 #[derive(Args)]
 pub struct DescriptionArgs {
-    /// A human-readable name for the source
+    /// A human-readable name for the source entry
     #[arg(short, long)]
     pub description: Option<String>,
 }
 
 #[derive(Args)]
 pub struct DisabledArgs {
-    /// Mark this source as disabled
+    /// Mark this source entry as disabled
     #[arg(long)]
     pub disabled: bool,
 }
@@ -80,14 +80,14 @@ pub struct OverwriteArgs {
     #[arg(long)]
     pub overwrite: bool,
 
-    /// Append to the source file if it already exists.
+    /// Append a new entry to the source file if it already exists.
     #[arg(short, long)]
     pub append: bool,
 }
 
 #[derive(Args)]
 pub struct New {
-    /// A unique name for the source
+    /// The name of the source file
     ///
     /// The source file is generated in /etc/apt/sources.list.d/ with this as its basename.
     pub name: String,
@@ -129,7 +129,7 @@ pub struct New {
     #[arg(long)]
     pub lang: Vec<String>,
 
-    /// Add an additional option to the source file
+    /// Add an additional option to the source entry
     ///
     /// Add an option that doesn't have its own flag in this CLI. See the sources.list(5) man page
     /// for a list of valid options.
@@ -140,7 +140,7 @@ pub struct New {
 
     /// Allow invalid options names with --option
     ///
-    /// Options passed with --option are added to the source file literally, without checking if
+    /// Options passed with --option are added to the source entry literally, without checking if
     /// they're valid.
     #[arg(long)]
     pub force_literal_options: bool,
@@ -157,7 +157,7 @@ pub struct Add {
     /// The one-line-style source entry
     pub line: String,
 
-    /// A unique name for the source
+    /// The name of the source file
     ///
     /// The source file is generated in /etc/apt/sources.list.d/ with this as its basename.
     #[arg(short, long)]
@@ -230,10 +230,10 @@ pub struct Convert {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Add a source by specifying its parameters
+    /// Add a new source entry by specifying its parameters
     New(New),
 
-    /// Add a source by its one-line-style source entry
+    /// Add a new source entry using the one-line syntax
     ///
     /// This parses the one-line-style entry and converts it to the more modern deb822 format before
     /// adding it to your repository sources.
