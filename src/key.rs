@@ -9,7 +9,7 @@ use crate::error::Error;
 use crate::option::OptionValue;
 use crate::pgp::{Key, KeyEncoding, KeyId, Keyring};
 
-/// A location to acquire a public singing key from.
+/// A location to acquire a public signing key from.
 #[derive(Debug)]
 pub enum KeySource {
     /// Download the key from a URL.

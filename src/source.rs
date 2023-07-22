@@ -13,7 +13,7 @@ use crate::key::KeySource;
 use crate::option::{KnownOptionName, OptionMap, OptionValue};
 use crate::parse::{parse_custom_option, parse_line_entry};
 
-/// The location to install a singing key to.
+/// The location to install a signing key to.
 #[derive(Debug)]
 pub enum KeyDestination {
     File { path: PathBuf },
@@ -38,7 +38,7 @@ impl KeyDestination {
     }
 }
 
-/// A repository singing key.
+/// A repository signing key.
 #[derive(Debug)]
 pub enum SigningKey {
     /// The key is stored in a separate file.
@@ -235,7 +235,7 @@ impl SourceEntry {
                 KeyDestination::File { path } => {
                     key_location
                         .install(&path)
-                        .wrap_err("failed installing singing key to file")?;
+                        .wrap_err("failed installing signing key to file")?;
 
                     SigningKey::File { path }
                 }
