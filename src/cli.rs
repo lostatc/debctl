@@ -182,7 +182,7 @@ pub struct DestArgs {
     ///
     /// This looks for a file in /etc/apt/sources.list.d/ with this basename and replaces it.
     #[arg(short, long)]
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// The path of the single-line-style file to convert
     ///
@@ -193,7 +193,7 @@ pub struct DestArgs {
         conflicts_with = "name",
         requires = "out_path"
     )]
-    in_path: Option<PathBuf>,
+    pub in_path: Option<PathBuf>,
 
     /// The path of the deb822 file to generate
     ///
@@ -204,21 +204,28 @@ pub struct DestArgs {
         conflicts_with = "name",
         requires = "in_path"
     )]
-    out_path: Option<PathBuf>,
+    pub out_path: Option<PathBuf>,
+}
+
+#[derive(Args)]
+#[group(required = false, multiple = false)]
+pub struct BackupArgs {
+    /// Backup the original `.list` file to `.list.bak`
+    #[arg(long)]
+    pub backup: bool,
+
+    /// Backup the original `.list` file to this path
+    #[arg(long, value_name = "PATH")]
+    pub backup_to: Option<PathBuf>,
 }
 
 #[derive(Args)]
 pub struct Convert {
     #[command(flatten)]
-    dest: DestArgs,
+    pub dest: DestArgs,
 
-    /// Backup the original `.list` file to `.list.bak`
-    #[arg(long)]
-    backup: bool,
-
-    /// Backup the original `.list` file to this path
-    #[arg(long, value_name = "PATH")]
-    backup_to: Option<PathBuf>,
+    #[command(flatten)]
+    pub backup: BackupArgs,
 }
 
 #[derive(Subcommand)]

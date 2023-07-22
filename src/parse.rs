@@ -1,6 +1,9 @@
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
 use std::str::FromStr;
 
-use eyre::bail;
+use eyre::{bail, WrapErr};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -103,4 +106,25 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     }
 
     Ok(option_map)
+}
+
+pub fn parse_line_file(path: &Path) -> eyre::Result<Vec<OptionMap>> {
+    let mut source_file = File::open(path).wrap_err("failed to open source file")?;
+    let mut options_list = Vec::new();
+
+    for line_result in BufReader::new(&mut source_file).lines() {
+        let line = line_result.wrap_err("failed reading source file")?;
+
+        if line.trim().starts_with('#') {
+            // This line is a comment.
+            continue;
+        }
+
+        let options =
+            parse_line_entry(&line).wrap_err("failed parsing single-line-style source entry")?;
+
+        options_list.push(options);
+    }
+
+    Ok(options_list)
 }

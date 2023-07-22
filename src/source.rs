@@ -14,6 +14,7 @@ use crate::option::{KnownOptionName, OptionMap, OptionValue};
 use crate::parse::{parse_custom_option, parse_line_entry};
 
 /// The location to install a singing key to.
+#[derive(Debug)]
 pub enum KeyDestination {
     File { path: PathBuf },
     Inline,
@@ -37,6 +38,7 @@ impl KeyDestination {
 }
 
 /// A repository singing key.
+#[derive(Debug)]
 pub enum SigningKey {
     /// The key is stored in a separate file.
     File { path: PathBuf },
@@ -66,9 +68,9 @@ impl OverwriteArgs {
     }
 }
 
-/// The location of a repo source file.
+/// The path of a repo source file.
 #[derive(Debug)]
-pub enum SourceFile {
+pub enum SourceFilePath {
     /// A source file installed in the APT sources directory.
     Installed { name: String },
 
@@ -76,18 +78,40 @@ pub enum SourceFile {
     File { path: PathBuf },
 }
 
+/// A kind of source file.
+#[derive(Debug, Clone, Copy)]
+pub enum SourceFileKind {
+    /// A single-line-style source file.
+    SingleLine,
+
+    /// A deb822-style source file.
+    Deb822,
+}
+
+/// A repo source file.
+#[derive(Debug)]
+pub struct SourceFile {
+    pub path: SourceFilePath,
+    pub kind: SourceFileKind,
+}
+
 impl SourceFile {
     const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
 
     /// The path of this source file.
     pub fn path(&self) -> Cow<'_, Path> {
-        match self {
-            Self::Installed { name } => Cow::Owned(
-                [Self::SOURCES_DIR, &format!("{}.sources", name)]
+        let extension = match self.kind {
+            SourceFileKind::SingleLine => "list",
+            SourceFileKind::Deb822 => "sources",
+        };
+
+        match &self.path {
+            SourceFilePath::Installed { name } => Cow::Owned(
+                [Self::SOURCES_DIR, &format!("{}.{}", name, extension)]
                     .iter()
                     .collect(),
             ),
-            Self::File { path } => Cow::Borrowed(path),
+            SourceFilePath::File { path } => Cow::Borrowed(path),
         }
     }
 }
@@ -95,7 +119,7 @@ impl SourceFile {
 /// A repository source entry.
 #[derive(Debug)]
 pub struct SourceEntry {
-    dest: SourceFile,
+    file: SourceFile,
     options: OptionMap,
     key: Option<KeySource>,
 }
@@ -169,8 +193,11 @@ impl SourceEntry {
         let key = parse_key_args(&args.key)?;
 
         Ok(Self {
-            dest: SourceFile::Installed {
-                name: args.name.clone(),
+            file: SourceFile {
+                path: SourceFilePath::Installed {
+                    name: args.name.clone(),
+                },
+                kind: SourceFileKind::Deb822,
             },
             options,
             key,
@@ -191,8 +218,11 @@ impl SourceEntry {
         let key = parse_key_args(&args.key)?;
 
         Ok(Self {
-            dest: SourceFile::Installed {
-                name: args.name.clone(),
+            file: SourceFile {
+                path: SourceFilePath::Installed {
+                    name: args.name.clone(),
+                },
+                kind: SourceFileKind::Deb822,
             },
             options,
             key,
@@ -261,7 +291,7 @@ impl SourceEntry {
 
     /// Install this source entry as a file in deb822 format.
     pub fn install(&self, action: OverwriteAction) -> eyre::Result<()> {
-        let mut file = self.open_source_file(&self.dest.path(), action)?;
+        let mut file = self.open_source_file(&self.file.path(), action)?;
 
         if action == OverwriteAction::Append {
             let last_line = BufReader::new(&mut file).lines().last().transpose()?;
