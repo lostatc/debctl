@@ -177,7 +177,7 @@ pub struct Add {
 }
 
 #[derive(Args)]
-pub struct DestArgs {
+pub struct ConvertDestArgs {
     /// The name of the source file
     ///
     /// This looks for a file in /etc/apt/sources.list.d/ with this basename and replaces it.
@@ -222,7 +222,7 @@ pub struct BackupArgs {
 #[derive(Args)]
 pub struct Convert {
     #[command(flatten)]
-    pub dest: DestArgs,
+    pub dest: ConvertDestArgs,
 
     #[command(flatten)]
     pub backup: BackupArgs,

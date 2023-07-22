@@ -4,6 +4,7 @@
 
 mod cli;
 mod command;
+mod convert;
 mod error;
 mod key;
 mod option;
