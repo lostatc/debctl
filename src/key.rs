@@ -11,7 +11,7 @@ use crate::pgp::{Key, KeyEncoding, KeyId, Keyring};
 
 /// A location to acquire a public singing key from.
 #[derive(Debug)]
-pub enum KeyLocation {
+pub enum KeySource {
     /// Download the key from a URL.
     Download { url: Url },
 
@@ -44,7 +44,7 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
     }
 }
 
-impl KeyLocation {
+impl KeySource {
     /// Get signing key at this location.
     fn get_key(&self) -> eyre::Result<Key> {
         match self {

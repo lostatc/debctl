@@ -13,7 +13,7 @@ pub struct Cli {
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
-pub struct KeyLocationArgs {
+pub struct KeySourceArgs {
     /// The public signing key for the repo
     ///
     /// This accepts the URL or local file path of a PGP key, in either binary or armored format.
@@ -36,7 +36,7 @@ pub struct KeyLocationArgs {
 pub struct KeyDestinationArgs {
     /// The directory to install the repository signing key to
     #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
-    pub keyring_dir: String,
+    pub keyring_dir: PathBuf,
 
     /// Inline the repository signing key into the source file instead of installing it to a
     /// separate file
@@ -47,7 +47,7 @@ pub struct KeyDestinationArgs {
 #[derive(Args)]
 pub struct SigningKeyArgs {
     #[command(flatten)]
-    pub location: KeyLocationArgs,
+    pub location: KeySourceArgs,
 
     /// Download the repository signing key from this keyserver
     ///

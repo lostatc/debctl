@@ -1,20 +1,24 @@
 use crate::cli::{Add, Commands, Convert, New};
-use crate::source::RepoSource;
+use crate::source::{KeyDestination, SourceEntry};
 
 fn new(args: New) -> eyre::Result<()> {
-    let mut source = RepoSource::from_new_args(args)?;
+    let action = args.overwrite.action();
+    let key_dest = KeyDestination::from_args(&args.key.destination, &args.name);
+    let mut source = SourceEntry::from_new_args(args)?;
 
-    source.install_key()?;
-    source.install()?;
+    source.install_key(key_dest)?;
+    source.install(action)?;
 
     Ok(())
 }
 
 fn add(args: Add) -> eyre::Result<()> {
-    let mut source = RepoSource::from_add_args(args)?;
+    let action = args.overwrite.action();
+    let key_dest = KeyDestination::from_args(&args.key.destination, &args.name);
+    let mut source = SourceEntry::from_add_args(args)?;
 
-    source.install_key()?;
-    source.install()?;
+    source.install_key(key_dest)?;
+    source.install(action)?;
 
     Ok(())
 }

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -6,11 +7,34 @@ use std::process::Command;
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
-use crate::cli::{Add, New, SigningKeyArgs};
+use crate::cli::{Add, KeyDestinationArgs, New, OverwriteArgs, SigningKeyArgs};
 use crate::error::Error;
-use crate::key::KeyLocation;
+use crate::key::KeySource;
 use crate::option::{KnownOptionName, OptionMap, OptionValue};
 use crate::parse::{parse_custom_option, parse_line_entry};
+
+/// The location to install a singing key to.
+pub enum KeyDestination {
+    File { path: PathBuf },
+    Inline,
+}
+
+/// The path of the signing key for a source entry.
+fn key_path(keyring_dir: &Path, name: String) -> PathBuf {
+    keyring_dir.join(format!("{}-archive-keyring.gpg", name))
+}
+
+impl KeyDestination {
+    pub fn from_args(args: &KeyDestinationArgs, name: &str) -> KeyDestination {
+        if args.inline_key {
+            KeyDestination::Inline
+        } else {
+            KeyDestination::File {
+                path: key_path(&args.keyring_dir, name.to_owned()),
+            }
+        }
+    }
+}
 
 /// A repository singing key.
 pub enum SigningKey {
@@ -29,15 +53,51 @@ pub enum OverwriteAction {
     Fail,
 }
 
-/// A repository source.
+impl OverwriteArgs {
+    /// The `OverwriteAction` for these args.
+    pub fn action(&self) -> OverwriteAction {
+        if self.overwrite {
+            OverwriteAction::Overwrite
+        } else if self.append {
+            OverwriteAction::Append
+        } else {
+            OverwriteAction::Fail
+        }
+    }
+}
+
+/// The location of a repo source file.
 #[derive(Debug)]
-pub struct RepoSource {
-    name: String,
+pub enum SourceFile {
+    /// A source file installed in the APT sources directory.
+    Installed { name: String },
+
+    /// A source file at an arbitrary file path.
+    File { path: PathBuf },
+}
+
+impl SourceFile {
+    const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
+
+    /// The path of this source file.
+    pub fn path(&self) -> Cow<'_, Path> {
+        match self {
+            Self::Installed { name } => Cow::Owned(
+                [Self::SOURCES_DIR, &format!("{}.sources", name)]
+                    .iter()
+                    .collect(),
+            ),
+            Self::File { path } => Cow::Borrowed(path),
+        }
+    }
+}
+
+/// A repository source entry.
+#[derive(Debug)]
+pub struct SourceEntry {
+    dest: SourceFile,
     options: OptionMap,
-    key: Option<KeyLocation>,
-    keyring_dir: PathBuf,
-    inline_key: bool,
-    action: OverwriteAction,
+    key: Option<KeySource>,
 }
 
 /// Return the current distro version codename.
@@ -52,22 +112,20 @@ fn get_current_codename() -> eyre::Result<String> {
     Ok(String::from_utf8(stdout)?.trim().to_string())
 }
 
-const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
-
 /// Parse the CLI args to determine where we're fetching the singing key from.
-fn parse_key_args(args: &SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
+fn parse_key_args(args: &SigningKeyArgs) -> eyre::Result<Option<KeySource>> {
     Ok(match (&args.location.key, &args.keyserver) {
-        (Some(key_location), Some(keyserver)) => Some(KeyLocation::Keyserver {
+        (Some(key_location), Some(keyserver)) => Some(KeySource::Keyserver {
             id: key_location.to_string(),
             keyserver: keyserver.to_string(),
         }),
         (Some(key_location), None) => match Url::parse(key_location) {
-            Ok(url) => Some(KeyLocation::Download { url }),
+            Ok(url) => Some(KeySource::Download { url }),
             Err(_) => {
                 let path = Path::new(&key_location);
 
                 if path.exists() {
-                    Some(KeyLocation::File {
+                    Some(KeySource::File {
                         path: path.to_path_buf(),
                     })
                 } else {
@@ -81,26 +139,13 @@ fn parse_key_args(args: &SigningKeyArgs) -> eyre::Result<Option<KeyLocation>> {
     })
 }
 
-impl RepoSource {
-    /// The path to install this repo source to.
-    fn path(&self) -> PathBuf {
-        [SOURCES_DIR, &format!("{}.sources", self.name)]
-            .iter()
-            .collect()
-    }
-
-    /// The path of a signing key for this repo source.
-    fn key_path(&self) -> PathBuf {
-        self.keyring_dir
-            .join(format!("{}-archive-keyring.gpg", self.name))
-    }
-
+impl SourceEntry {
     /// Construct an instance from the CLI `args`.
     pub fn from_new_args(args: New) -> eyre::Result<Self> {
         let mut options = args
             .option
             .into_iter()
-            .map(|option| parse_custom_option(option, args.force_literal_options))
+            .map(|option| parse_custom_option(&option, args.force_literal_options))
             .collect::<Result<OptionMap, _>>()?;
 
         options.insert(KnownOptionName::Uris, args.uri);
@@ -122,21 +167,13 @@ impl RepoSource {
         }
 
         let key = parse_key_args(&args.key)?;
-        let keyring_dir = Path::new(&args.key.destination.keyring_dir).to_path_buf();
 
         Ok(Self {
-            name: args.name.clone(),
+            dest: SourceFile::Installed {
+                name: args.name.clone(),
+            },
             options,
             key,
-            keyring_dir,
-            inline_key: args.key.destination.inline_key,
-            action: if args.overwrite.overwrite {
-                OverwriteAction::Overwrite
-            } else if args.overwrite.append {
-                OverwriteAction::Append
-            } else {
-                OverwriteAction::Fail
-            },
         })
     }
 
@@ -152,41 +189,32 @@ impl RepoSource {
         }
 
         let key = parse_key_args(&args.key)?;
-        let keyring_dir = Path::new(&args.key.destination.keyring_dir).to_path_buf();
 
         Ok(Self {
-            name: args.name.clone(),
+            dest: SourceFile::Installed {
+                name: args.name.clone(),
+            },
             options,
             key,
-            keyring_dir,
-            inline_key: args.key.destination.inline_key,
-            action: if args.overwrite.overwrite {
-                OverwriteAction::Overwrite
-            } else if args.overwrite.append {
-                OverwriteAction::Append
-            } else {
-                OverwriteAction::Fail
-            },
         })
     }
 
-    /// Install the key for this repository source.
-    pub fn install_key(&mut self) -> eyre::Result<()> {
+    /// Install the key for this source entry.
+    pub fn install_key(&mut self, dest: KeyDestination) -> eyre::Result<()> {
         if let Some(key_location) = &self.key {
-            let key = if self.inline_key {
-                SigningKey::Inline {
+            let key = match dest {
+                KeyDestination::File { path } => {
+                    key_location
+                        .install(&path)
+                        .wrap_err("failed installing singing key to file")?;
+
+                    SigningKey::File { path }
+                }
+                KeyDestination::Inline => SigningKey::Inline {
                     value: key_location
                         .to_value()
                         .wrap_err("failed installing inline signing key")?,
-                }
-            } else {
-                let path = self.key_path();
-
-                key_location
-                    .install(&path)
-                    .wrap_err("failed installing singing key to file")?;
-
-                SigningKey::File { path }
+                },
             };
 
             self.options.insert_key(key)?;
@@ -196,8 +224,8 @@ impl RepoSource {
     }
 
     /// Open the repo source file.
-    fn open_source_file(&self, path: &Path) -> eyre::Result<File> {
-        let result = match self.action {
+    fn open_source_file(&self, path: &Path, action: OverwriteAction) -> eyre::Result<File> {
+        let result = match action {
             OverwriteAction::Overwrite => OpenOptions::new()
                 .create(true)
                 .truncate(true)
@@ -231,11 +259,11 @@ impl RepoSource {
         }
     }
 
-    /// Install this repo source as a file in deb822 format.
-    pub fn install(&self) -> eyre::Result<()> {
-        let mut file = self.open_source_file(&self.path())?;
+    /// Install this source entry as a file in deb822 format.
+    pub fn install(&self, action: OverwriteAction) -> eyre::Result<()> {
+        let mut file = self.open_source_file(&self.dest.path(), action)?;
 
-        if self.action == OverwriteAction::Append {
+        if action == OverwriteAction::Append {
             let last_line = BufReader::new(&mut file).lines().last().transpose()?;
 
             file.seek(SeekFrom::End(0))?;

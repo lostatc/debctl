@@ -12,7 +12,7 @@ use crate::option::{KnownOptionName, OptionMap, OptionName, OptionPair, OptionVa
 pub struct LineEntryParser;
 
 /// Parse a custom option in `key=value` format.
-pub fn parse_custom_option(option: String, force_literal: bool) -> eyre::Result<OptionPair> {
+pub fn parse_custom_option(option: &str, force_literal: bool) -> eyre::Result<OptionPair> {
     let (key, value) = match option.trim().split_once('=') {
         Some(pair) => pair,
         None => bail!(Error::MalformedOption {
