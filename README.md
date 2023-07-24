@@ -2,8 +2,8 @@
 
 debctl is a CLI tool for managing apt repositories. It's intended as a
 replacement for
-[`add-apt-repository`](https://manpages.debian.org/buster/software-properties-common/add-apt-repository.1.en.html)
-and [`apt-key`](https://manpages.debian.org/testing/apt/apt-key.8.en.html) that
+[add-apt-repository](https://manpages.debian.org/buster/software-properties-common/add-apt-repository.1.en.html)
+and [apt-key](https://manpages.debian.org/testing/apt/apt-key.8.en.html) that
 supports the newer
 [deb822](https://manpages.debian.org/stretch/apt/sources.list.5.en.html#DEB822-STYLE_FORMAT)
 format and implements modern best practices for managing signing keys.
