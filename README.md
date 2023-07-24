@@ -17,17 +17,26 @@ format and implements modern best practices for managing signing keys.
 
 ## Features
 
-- Uses the newer deb822 format that will eventually deprecate the old
-  `sources.list` format for apt repositories.
-- Implements modern best practices by trusting signing keys only for the
-  repositories they're signing.
-- Fetches signing keys from a local path, a URL, or a keyserver.
-- Supports both armored and unarmored keys.
-- Migrating existing files from the old single-line syntax to the newer deb822
-  syntax.
-- Inlining signing keys into the `.sources` file.
-- Appending new entries to existing `.sources` files.
-- Encourages best practices, but provides escape hatches for doing weird stuff.
+- Add new repositories to your system in deb822 format.
+- Fetches signing keys from a local file path, a URL, or a keyserver and trusts
+  them for only the repository they're signing via the `Signed-By` option.
+- Migrate existing files from the old `.list` format to the deb822 `.sources`
+  format.
+- Keys can be installed in a keyring or inlined into the `.sources` file.
+- Append new entries to existing `.sources` files.
+- Generally encourages best practices, but provides escape hatches for doing
+  weird stuff.
+
+## Installation
+
+Install [Rust](https://www.rust-lang.org/tools/install) and run:
+
+```shell
+cargo install debctl
+```
+
+This tool shells out to GnuPG for working with PGP keys, so you must have `gpg`
+installed and available on your `PATH`.
 
 ## Examples
 
@@ -35,7 +44,11 @@ Let's add the [Docker apt
 repository](https://docs.docker.com/engine/install/ubuntu/) to your system:
 
 ```shell
-debctl new --uri https://download.docker.com/linux/ubuntu --key https://download.docker.com/linux/ubuntu/gpg --component stable docker
+debctl new \
+    --uri https://download.docker.com/linux/ubuntu \
+    --key https://download.docker.com/linux/ubuntu/gpg \
+    --component stable \
+    docker
 ```
 
 This downloads the signing key for the repository, installs it under
@@ -53,12 +66,15 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker-archive-keyring.gpg
 ```
 
-Most documentation for third-party apt repositories still directs users to use
-the old single-line syntax with `/etc/apt/sources.list`. This tool accepts that
-old syntax and converts it to the newer deb822 syntax:
+Most documentation for third-party apt repositories directs users to use
+`add-apt-repository`. This tool accepts the old-style syntax used by
+`add-apt-repository` and converts it to deb822 syntax:
 
 ```shell
-debctl add --name docker --key https://download.docker.com/linux/ubuntu/gpg 'deb [arch=amd64 lang=en_US] https://download.docker.com/linux/ubuntu jammy stable'
+debctl add \
+    --name docker \
+    --key https://download.docker.com/linux/ubuntu/gpg \
+    'deb [arch=amd64 lang=en_US] https://download.docker.com/linux/ubuntu jammy stable'
 ```
 
 Here's the file that command generates:
@@ -74,8 +90,8 @@ Architectures: amd64
 Languages: en_US
 ```
 
-You can also convert existing single-line-style `.list` files to deb822-style
-`.sources` files:
+You can also convert existing old-style `.list` files to deb822-style `.sources`
+files:
 
 ```shell
 debctl convert --name docker
