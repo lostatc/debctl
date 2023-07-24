@@ -177,7 +177,14 @@ pub struct Add {
 }
 
 #[derive(Args)]
-pub struct ConvertDestArgs {
+pub struct ConvertDestArgs {}
+
+#[derive(Args)]
+#[group(required = false, multiple = false)]
+pub struct BackupArgs {}
+
+#[derive(Args)]
+pub struct Convert {
     /// The name of the source file
     ///
     /// This looks for a file in /etc/apt/sources.list.d/ with this basename and replaces it.
@@ -191,6 +198,8 @@ pub struct ConvertDestArgs {
         long = "in",
         value_name = "PATH",
         conflicts_with = "name",
+        conflicts_with = "backup",
+        conflicts_with = "backup_to",
         requires = "out_path"
     )]
     pub in_path: Option<PathBuf>,
@@ -202,30 +211,24 @@ pub struct ConvertDestArgs {
         long = "out",
         value_name = "PATH",
         conflicts_with = "name",
+        conflicts_with = "backup",
+        conflicts_with = "backup_to",
         requires = "in_path"
     )]
     pub out_path: Option<PathBuf>,
-}
 
-#[derive(Args)]
-#[group(required = false, multiple = false)]
-pub struct BackupArgs {
     /// Backup the original `.list` file to `.list.bak`
-    #[arg(long)]
+    #[arg(long, requires = "name", conflicts_with = "backup_to")]
     pub backup: bool,
 
     /// Backup the original `.list` file to this path
-    #[arg(long, value_name = "PATH")]
+    #[arg(
+        long,
+        value_name = "PATH",
+        requires = "name",
+        conflicts_with = "backup"
+    )]
     pub backup_to: Option<PathBuf>,
-}
-
-#[derive(Args)]
-pub struct Convert {
-    #[command(flatten)]
-    pub dest: ConvertDestArgs,
-
-    #[command(flatten)]
-    pub backup: BackupArgs,
 }
 
 #[derive(Subcommand)]

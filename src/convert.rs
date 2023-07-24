@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use eyre::{bail, eyre, WrapErr};
 
-use crate::cli::{BackupArgs, Convert, ConvertDestArgs};
+use crate::cli::Convert;
 use crate::entry::{OverwriteAction, SourceEntry};
 use crate::error::Error;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
@@ -21,7 +21,7 @@ enum BackupMode {
 
 impl BackupMode {
     /// Create an instance from CLI args.
-    pub fn from_args(args: &BackupArgs) -> Option<Self> {
+    pub fn from_args(args: &Convert) -> Option<Self> {
         if args.backup {
             Some(Self::Backup)
         } else {
@@ -46,7 +46,7 @@ pub struct EntryConverter {
     remove_original: bool,
 }
 
-impl ConvertDestArgs {
+impl Convert {
     /// The input source file.
     pub fn in_file(&self) -> eyre::Result<SourceFile> {
         if let Some(name) = &self.name {
@@ -95,8 +95,8 @@ impl EntryConverter {
 
     /// Construct an instance from CLI args.
     pub fn from_args(args: &Convert) -> eyre::Result<Self> {
-        let in_file = args.dest.in_file()?;
-        let out_file = args.dest.out_file()?;
+        let in_file = args.in_file()?;
+        let out_file = args.out_file()?;
 
         let in_path = in_file.path();
         let input_is_stdin = path_is_stdio(&in_path);
@@ -119,14 +119,14 @@ impl EntryConverter {
             },
         };
 
-        let backup_mode = BackupMode::from_args(&args.backup);
+        let backup_mode = BackupMode::from_args(args);
 
         Ok(EntryConverter {
             options,
             backup_mode,
             in_file,
             out_file,
-            remove_original: args.dest.name.is_some() && !input_is_stdin,
+            remove_original: args.name.is_some() && !input_is_stdin,
         })
     }
 
