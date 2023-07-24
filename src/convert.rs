@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fs::{self, File, OpenOptions};
-use std::io;
-use std::path::PathBuf;
+use std::io::{self, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 
 use eyre::{bail, eyre, WrapErr};
 
@@ -30,6 +30,10 @@ impl BackupMode {
             })
         }
     }
+}
+
+fn path_is_stdio(path: &Path) -> bool {
+    path == Path::new("-")
 }
 
 /// A converter for converting a repo source file from the single-line syntax to the deb822 syntax.
@@ -95,7 +99,13 @@ impl EntryConverter {
 
         let in_path = in_file.path();
 
-        let options = match parse_line_file(&in_path) {
+        let mut source_file: Box<dyn Read> = if path_is_stdio(&in_path) {
+            Box::new(io::stdin())
+        } else {
+            Box::new(File::open(&in_path).wrap_err("failed to open source file")?)
+        };
+
+        let options = match parse_line_file(&mut source_file) {
             Ok(options) => options,
             Err(err) => match err.downcast_ref::<io::Error>() {
                 Some(io_err) if io_err.kind() == io::ErrorKind::NotFound => {
@@ -117,6 +127,24 @@ impl EntryConverter {
         })
     }
 
+    /// Open the file to back up the original source file to.
+    fn open_backup_file(&self, path: &Path) -> eyre::Result<File> {
+        let backup_file_result = OpenOptions::new().create_new(true).write(true).open(path);
+
+        match backup_file_result {
+            Ok(file) => Ok(file),
+            Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+                Err(eyre!(Error::PermissionDenied))
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                Err(eyre!(Error::ConvertBackupAlreadyExists {
+                    path: path.to_owned()
+                }))
+            }
+            Err(err) => Err(err).wrap_err("failed opening backup source file"),
+        }
+    }
+
     /// Backup the original source file.
     fn backup_original(&self) -> eyre::Result<()> {
         let in_path = self.in_file.path();
@@ -134,26 +162,10 @@ impl EntryConverter {
             None => return Ok(()),
         };
 
+        let mut backup_file = self.open_backup_file(backup_path.as_ref())?;
+
         let mut source_file =
             File::open(&in_path).wrap_err("failed opening original source file")?;
-
-        let backup_file_result = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(backup_path.as_ref());
-
-        let mut backup_file = match backup_file_result {
-            Ok(file) => file,
-            Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
-                bail!(Error::PermissionDenied)
-            }
-            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                bail!(Error::ConvertBackupAlreadyExists {
-                    path: backup_path.into_owned()
-                })
-            }
-            Err(err) => return Err(err).wrap_err("failed opening backup source file"),
-        };
 
         io::copy(&mut source_file, &mut backup_file)
             .wrap_err("failed copying bytes from original source file to backup file")?;
@@ -185,6 +197,10 @@ impl EntryConverter {
 
     /// Delete the original source file.
     fn remove_original(&self) -> eyre::Result<()> {
+        if path_is_stdio(self.in_file.path().as_ref()) {
+            return Ok(());
+        }
+
         match fs::remove_file(self.in_file.path()) {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
@@ -199,15 +215,26 @@ impl EntryConverter {
         self.backup_original()
             .wrap_err("failed to create backup of original `.list` source file")?;
 
-        let mut file = self
-            .open_dest_file()
-            .wrap_err("failed opening `.sources` destination file")?;
+        let out_path = self.out_file.path();
+
+        let mut output_file = if path_is_stdio(&out_path) {
+            tempfile::tempfile()?
+        } else {
+            self.open_dest_file()
+                .wrap_err("failed opening `.sources` destination file")?
+        };
 
         for options in &self.options {
             let entry = SourceEntry::new(self.out_file.clone(), options.clone(), None);
+
             entry
-                .install_to(&mut file, OverwriteAction::Append)
+                .install_to(&mut output_file, OverwriteAction::Append)
                 .wrap_err("failed installing converted `.sources` source file")?;
+        }
+
+        if path_is_stdio(&out_path) {
+            output_file.seek(SeekFrom::Start(0))?;
+            io::copy(&mut output_file, &mut io::stdout())?;
         }
 
         self.remove_original()

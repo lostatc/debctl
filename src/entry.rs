@@ -210,6 +210,15 @@ impl SourceEntry {
         }
     }
 
+    fn write_options(&self, mut dest: impl Write) -> eyre::Result<()> {
+        for (key, value) in self.options.options() {
+            writeln!(&mut dest, "{}: {}", key.to_deb822(), value.to_deb822())
+                .wrap_err("failed writing option to source file")?;
+        }
+
+        Ok(())
+    }
+
     /// Install this source entry to the given file in deb822 format.
     pub fn install_to(&self, mut file: &mut File, action: OverwriteAction) -> eyre::Result<()> {
         if action == OverwriteAction::Append {
@@ -233,9 +242,7 @@ impl SourceEntry {
             }
         }
 
-        for (key, value) in self.options.options() {
-            writeln!(&mut file, "{}: {}", key.to_deb822(), value.to_deb822())?;
-        }
+        self.write_options(&mut file)?;
 
         Ok(())
     }
