@@ -104,7 +104,15 @@ impl EntryConverter {
         let mut source_file: Box<dyn Read> = if input_is_stdin {
             Box::new(io::stdin())
         } else {
-            Box::new(File::open(&in_path).wrap_err("failed to open source file")?)
+            match File::open(&in_path) {
+                Ok(file) => Box::new(file),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                    bail!(Error::ConvertInFileNotFound {
+                        path: in_path.into_owned()
+                    })
+                }
+                Err(err) => return Err(err).wrap_err("failed opening source file"),
+            }
         };
 
         let options = match parse_line_file(&mut source_file) {
