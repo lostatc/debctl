@@ -43,6 +43,7 @@ pub struct EntryConverter {
     backup_mode: Option<BackupMode>,
     in_file: SourceFile,
     out_file: SourceFile,
+    remove_original: bool,
 }
 
 impl ConvertDestArgs {
@@ -98,8 +99,9 @@ impl EntryConverter {
         let out_file = args.dest.out_file()?;
 
         let in_path = in_file.path();
+        let input_is_stdin = path_is_stdio(&in_path);
 
-        let mut source_file: Box<dyn Read> = if path_is_stdio(&in_path) {
+        let mut source_file: Box<dyn Read> = if input_is_stdin {
             Box::new(io::stdin())
         } else {
             Box::new(File::open(&in_path).wrap_err("failed to open source file")?)
@@ -124,6 +126,7 @@ impl EntryConverter {
             backup_mode,
             in_file,
             out_file,
+            remove_original: args.dest.name.is_some() && !input_is_stdin,
         })
     }
 
@@ -197,7 +200,7 @@ impl EntryConverter {
 
     /// Delete the original source file.
     fn remove_original(&self) -> eyre::Result<()> {
-        if path_is_stdio(self.in_file.path().as_ref()) {
+        if !self.remove_original {
             return Ok(());
         }
 
