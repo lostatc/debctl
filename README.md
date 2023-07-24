@@ -21,7 +21,8 @@ format and implements modern best practices for managing signing keys.
   `sources.list` format for apt repositories.
 - Implements modern best practices by trusting signing keys only for the
   repositories they're signing.
-- Fetching signing keys from a local path, a URL, or a keyserver.
+- Fetches signing keys from a local path, a URL, or a keyserver.
+- Supports both armored and unarmored keys.
 - Migrating existing files from the old single-line syntax to the newer deb822
   syntax.
 - Inlining signing keys into the `.sources` file.
