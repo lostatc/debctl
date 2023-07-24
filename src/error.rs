@@ -42,8 +42,13 @@ pub enum Error {
     NotPgpKey { key: String },
 
     #[error("There is no source file here: `{path}`.")]
-    SourceFileNotFound { path: PathBuf },
+    ConvertInFileNotFound { path: PathBuf },
 
-    #[error("There is already a file here: `{path}`.")]
-    ConvertedSourceFileAlreadyExists { path: PathBuf },
+    #[error("There is already a file here: `{path}`.\n\nRemove this file and try again.")]
+    ConvertOutFileAlreadyExists { path: PathBuf },
+
+    #[error(
+        "There is already a backup of the source file you're trying to convert here: `{path}`\n\nRemove this file and try again."
+    )]
+    ConvertBackupAlreadyExists { path: PathBuf },
 }

@@ -99,7 +99,7 @@ impl EntryConverter {
             Ok(options) => options,
             Err(err) => match err.downcast_ref::<io::Error>() {
                 Some(io_err) if io_err.kind() == io::ErrorKind::NotFound => {
-                    bail!(Error::SourceFileNotFound {
+                    bail!(Error::ConvertInFileNotFound {
                         path: in_path.into_owned(),
                     })
                 }
@@ -134,13 +134,29 @@ impl EntryConverter {
             None => return Ok(()),
         };
 
-        match fs::copy(&in_path, backup_path.as_ref()) {
+        let mut source_file =
+            File::open(&in_path).wrap_err("failed opening original source file")?;
+
+        let backup_file_result = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(backup_path.as_ref());
+
+        let mut backup_file = match backup_file_result {
+            Ok(file) => file,
             Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
                 bail!(Error::PermissionDenied)
             }
-            Err(err) => return Err(err).wrap_err("failed copying source file to backup path"),
-            _ => {}
-        }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                bail!(Error::ConvertBackupAlreadyExists {
+                    path: backup_path.into_owned()
+                })
+            }
+            Err(err) => return Err(err).wrap_err("failed opening backup source file"),
+        };
+
+        io::copy(&mut source_file, &mut backup_file)
+            .wrap_err("failed copying bytes from original source file to backup file")?;
 
         Ok(())
     }
@@ -159,7 +175,7 @@ impl EntryConverter {
                 Err(eyre!(Error::PermissionDenied))
             }
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                Err(eyre!(Error::ConvertedSourceFileAlreadyExists {
+                Err(eyre!(Error::ConvertOutFileAlreadyExists {
                     path: self.out_file.path().into_owned(),
                 }))
             }
