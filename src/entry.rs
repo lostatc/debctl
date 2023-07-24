@@ -84,6 +84,11 @@ impl SigningKeyArgs {
 }
 
 impl SourceEntry {
+    /// Create a new instance.
+    pub fn new(file: SourceFile, options: OptionMap, key: Option<KeySource>) -> Self {
+        Self { file, options, key }
+    }
+
     /// Construct an instance from the CLI `args`.
     pub fn from_new_args(args: New) -> eyre::Result<Self> {
         let mut options = args
@@ -205,12 +210,17 @@ impl SourceEntry {
         }
     }
 
-    /// Install this source entry as a file in deb822 format.
-    pub fn install(&self, action: OverwriteAction) -> eyre::Result<()> {
-        let mut file = self.open_source_file(&self.file.path(), action)?;
-
+    /// Install this source entry to the given file in deb822 format.
+    pub fn install_to(&self, mut file: &mut File, action: OverwriteAction) -> eyre::Result<()> {
         if action == OverwriteAction::Append {
-            let last_line = BufReader::new(&mut file).lines().last().transpose()?;
+            file.seek(SeekFrom::Start(0))?;
+
+            let buf_reader = BufReader::new(&mut file);
+            let mut last_line: Option<String> = None;
+
+            for line in buf_reader.lines() {
+                last_line = Some(line.wrap_err("failed reading from source file")?);
+            }
 
             file.seek(SeekFrom::End(0))?;
 
@@ -228,5 +238,12 @@ impl SourceEntry {
         }
 
         Ok(())
+    }
+
+    /// Install this source entry as a file in deb822 format.
+    pub fn install(&self, action: OverwriteAction) -> eyre::Result<()> {
+        let mut file = self.open_source_file(&self.file.path(), action)?;
+
+        self.install_to(&mut file, action)
     }
 }

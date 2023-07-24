@@ -4,7 +4,7 @@ use std::{
 };
 
 /// The path of a repo source file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SourceFilePath {
     /// A source file installed in the APT sources directory.
     Installed { name: String },
@@ -24,7 +24,7 @@ pub enum SourceFileKind {
 }
 
 /// A repo source file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SourceFile {
     pub path: SourceFilePath,
     pub kind: SourceFileKind,

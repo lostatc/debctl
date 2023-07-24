@@ -1,4 +1,5 @@
 use crate::cli::{Add, Commands, Convert, New};
+use crate::convert::EntryConverter;
 use crate::entry::SourceEntry;
 use crate::key::KeyDestination;
 
@@ -24,8 +25,12 @@ fn add(args: Add) -> eyre::Result<()> {
     Ok(())
 }
 
-fn convert(_: Convert) -> eyre::Result<()> {
-    unimplemented!()
+fn convert(args: Convert) -> eyre::Result<()> {
+    let converter = EntryConverter::from_args(&args)?;
+
+    converter.convert()?;
+
+    Ok(())
 }
 
 impl Commands {
