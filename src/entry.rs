@@ -162,7 +162,7 @@ impl SourceEntry {
             let key = match dest {
                 KeyDestination::File { path } => {
                     key_location
-                        .install(&path)
+                        .install(path)
                         .wrap_err("failed installing signing key to file")?;
 
                     SigningKey::File { path: path.clone() }

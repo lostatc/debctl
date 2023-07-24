@@ -189,7 +189,7 @@ impl EntryConverter {
         let mut backup_file = self.open_backup_file(backup_path.as_ref())?;
 
         let mut source_file =
-            File::open(&self.in_file.path()).wrap_err("failed opening original source file")?;
+            File::open(self.in_file.path()).wrap_err("failed opening original source file")?;
 
         io::copy(&mut source_file, &mut backup_file)
             .wrap_err("failed copying bytes from original source file to backup file")?;
