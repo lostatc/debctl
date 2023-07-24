@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -89,6 +90,11 @@ impl SourceEntry {
         Self { file, options, key }
     }
 
+    /// The path this entry will be installed to.
+    pub fn path(&self) -> Cow<'_, Path> {
+        self.file.path()
+    }
+
     /// Construct an instance from the CLI `args`.
     pub fn from_new_args(args: New) -> eyre::Result<Self> {
         let mut options = args
@@ -151,7 +157,7 @@ impl SourceEntry {
     }
 
     /// Install the key for this source entry.
-    pub fn install_key(&mut self, dest: KeyDestination) -> eyre::Result<()> {
+    pub fn install_key(&mut self, dest: &KeyDestination) -> eyre::Result<()> {
         if let Some(key_location) = &self.key {
             let key = match dest {
                 KeyDestination::File { path } => {
@@ -159,7 +165,7 @@ impl SourceEntry {
                         .install(&path)
                         .wrap_err("failed installing signing key to file")?;
 
-                    SigningKey::File { path }
+                    SigningKey::File { path: path.clone() }
                 }
                 KeyDestination::Inline => SigningKey::Inline {
                     value: key_location

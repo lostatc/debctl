@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use std::path::Path;
 use std::process::Child;
 use std::thread::JoinHandle;
 
@@ -74,4 +75,9 @@ pub fn wait(mut process: Child, handle: StderrHandle) -> eyre::Result<()> {
     }
 
     Ok(())
+}
+
+/// Return whether this path is "-", meaning to read from stdin or write to stdout.
+pub fn path_is_stdio(path: &Path) -> bool {
+    path == Path::new("-")
 }

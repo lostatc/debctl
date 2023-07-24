@@ -11,10 +11,11 @@ use crate::error::Error;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::option::OptionMap;
 use crate::parse::parse_line_file;
+use crate::stdio::path_is_stdio;
 
 /// How to back up the original file when converting a repo source file.
 #[derive(Debug)]
-enum BackupMode {
+pub enum BackupMode {
     Backup,
     BackupTo { path: PathBuf },
 }
@@ -30,10 +31,6 @@ impl BackupMode {
             })
         }
     }
-}
-
-fn path_is_stdio(path: &Path) -> bool {
-    path == Path::new("-")
 }
 
 /// A converter for converting a repo source file from the single-line syntax to the deb822 syntax.
@@ -138,6 +135,32 @@ impl EntryConverter {
         })
     }
 
+    /// Return the path of the file we're converting.
+    pub fn src_path(&self) -> Cow<'_, Path> {
+        self.in_file.path()
+    }
+
+    /// Return the path the converted file is written to.
+    pub fn dest_path(&self) -> Cow<'_, Path> {
+        self.out_file.path()
+    }
+
+    /// Return the path the original file is backed up to.
+    pub fn backup_path(&self) -> Option<Cow<'_, Path>> {
+        match &self.backup_mode {
+            Some(BackupMode::Backup) => Some(Cow::Owned(PathBuf::from(
+                format!(
+                    "{}.{}",
+                    self.in_file.path().as_os_str().to_string_lossy(),
+                    Self::BAKCKUP_EXT
+                )
+                .to_string(),
+            ))),
+            Some(BackupMode::BackupTo { path }) => Some(Cow::Borrowed(path)),
+            None => None,
+        }
+    }
+
     /// Open the file to back up the original source file to.
     fn open_backup_file(&self, path: &Path) -> eyre::Result<File> {
         let backup_file_result = OpenOptions::new().create_new(true).write(true).open(path);
@@ -158,25 +181,15 @@ impl EntryConverter {
 
     /// Backup the original source file.
     fn backup_original(&self) -> eyre::Result<()> {
-        let in_path = self.in_file.path();
-
-        let backup_path = match &self.backup_mode {
-            Some(BackupMode::Backup) => Cow::Owned(PathBuf::from(
-                format!(
-                    "{}.{}",
-                    in_path.as_os_str().to_string_lossy(),
-                    Self::BAKCKUP_EXT
-                )
-                .to_string(),
-            )),
-            Some(BackupMode::BackupTo { path }) => Cow::Borrowed(path),
+        let backup_path = match self.backup_path() {
+            Some(path) => path,
             None => return Ok(()),
         };
 
         let mut backup_file = self.open_backup_file(backup_path.as_ref())?;
 
         let mut source_file =
-            File::open(&in_path).wrap_err("failed opening original source file")?;
+            File::open(&self.in_file.path()).wrap_err("failed opening original source file")?;
 
         io::copy(&mut source_file, &mut backup_file)
             .wrap_err("failed copying bytes from original source file to backup file")?;
@@ -222,7 +235,7 @@ impl EntryConverter {
     }
 
     /// Convert the source entry.
-    pub fn convert(self) -> eyre::Result<()> {
+    pub fn convert(&self) -> eyre::Result<()> {
         self.backup_original()
             .wrap_err("failed to create backup of original `.list` source file")?;
 
