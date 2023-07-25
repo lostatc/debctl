@@ -1,92 +1,177 @@
-use crate::cli::{Add, Commands, Convert, New};
+use std::fmt::Write;
+
+use crate::cli;
 use crate::convert::EntryConverter;
 use crate::entry::{OverwriteAction, SourceEntry};
 use crate::key::KeyDestination;
-use crate::stdio::path_is_stdio;
 
-fn print_create_action(action: OverwriteAction, key_dest: &KeyDestination, entry: &SourceEntry) {
-    if let KeyDestination::File { path } = key_dest {
-        println!("Installed signing key to {}", path.display());
+/// A CLI command.
+pub trait Command {
+    fn run(&mut self) -> eyre::Result<()>;
+
+    fn report(&self) -> eyre::Result<Option<String>>;
+}
+
+pub struct NewCommand {
+    action: OverwriteAction,
+    key_dest: KeyDestination,
+    entry: SourceEntry,
+}
+
+impl NewCommand {
+    pub fn new(args: cli::New) -> eyre::Result<Self> {
+        Ok(Self {
+            action: args.overwrite.action(),
+            key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
+            entry: SourceEntry::from_new_args(&args)?,
+        })
+    }
+}
+
+impl Command for NewCommand {
+    fn run(&mut self) -> eyre::Result<()> {
+        self.entry.install_key(&self.key_dest)?;
+        self.entry.install(self.action)?;
+
+        Ok(())
     }
 
-    match action {
-        crate::entry::OverwriteAction::Overwrite => {
-            println!("Overwrote source file {}", entry.path().display())
+    fn report(&self) -> eyre::Result<Option<String>> {
+        let mut output = String::new();
+
+        if let KeyDestination::File { path } = &self.key_dest {
+            writeln!(&mut output, "Installed signing key to {}", path.display())?;
         }
-        crate::entry::OverwriteAction::Append => {
-            println!(
+
+        match self.action {
+            crate::entry::OverwriteAction::Overwrite => writeln!(
+                &mut output,
+                "Overwrote source file {}",
+                self.entry.path().display()
+            )?,
+            crate::entry::OverwriteAction::Append => writeln!(
+                &mut output,
                 "Appended new entry to source file {}",
-                entry.path().display()
-            )
+                self.entry.path().display()
+            )?,
+            crate::entry::OverwriteAction::Fail => writeln!(
+                &mut output,
+                "Created new source file {}",
+                self.entry.path().display()
+            )?,
+        };
+
+        Ok(Some(output))
+    }
+}
+
+pub struct AddCommand {
+    action: OverwriteAction,
+    key_dest: KeyDestination,
+    entry: SourceEntry,
+}
+
+impl AddCommand {
+    pub fn new(args: cli::Add) -> eyre::Result<Self> {
+        Ok(Self {
+            action: args.overwrite.action(),
+            key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
+            entry: SourceEntry::from_add_args(args)?,
+        })
+    }
+}
+
+impl Command for AddCommand {
+    fn run(&mut self) -> eyre::Result<()> {
+        self.entry.install_key(&self.key_dest)?;
+        self.entry.install(self.action)?;
+
+        Ok(())
+    }
+
+    fn report(&self) -> eyre::Result<Option<String>> {
+        let mut output = String::new();
+
+        if let KeyDestination::File { path } = &self.key_dest {
+            writeln!(&mut output, "Installed signing key to {}", path.display())?;
         }
-        crate::entry::OverwriteAction::Fail => {
-            println!("Created new source file {}", entry.path().display())
+
+        match self.action {
+            crate::entry::OverwriteAction::Overwrite => writeln!(
+                &mut output,
+                "Overwrote source file {}",
+                self.entry.path().display()
+            )?,
+            crate::entry::OverwriteAction::Append => writeln!(
+                &mut output,
+                "Appended new entry to source file {}",
+                self.entry.path().display()
+            )?,
+            crate::entry::OverwriteAction::Fail => writeln!(
+                &mut output,
+                "Created new source file {}",
+                self.entry.path().display()
+            )?,
+        };
+
+        Ok(Some(output))
+    }
+}
+
+pub struct ConvertCommand {
+    converter: EntryConverter,
+}
+
+impl ConvertCommand {
+    pub fn new(args: cli::Convert) -> eyre::Result<Self> {
+        Ok(Self {
+            converter: EntryConverter::from_args(&args)?,
+        })
+    }
+}
+
+impl Command for ConvertCommand {
+    fn run(&mut self) -> eyre::Result<()> {
+        self.converter.convert()?;
+
+        Ok(())
+    }
+
+    fn report(&self) -> eyre::Result<Option<String>> {
+        let mut output = String::new();
+
+        if self.converter.dest_path().is_none() {
+            // We're writing the converted source entry to stdout, so we don't want to print any
+            // output.
+            return Ok(None);
         }
+
+        if let Some(path) = self.converter.backup_path() {
+            writeln!(
+                &mut output,
+                "Backed up original source file to {}",
+                path.display()
+            )?;
+        }
+
+        if let Some(path) = self.converter.dest_path() {
+            writeln!(&mut output, "Created new source file {}", path.display())?;
+        }
+
+        if let Some(path) = self.converter.src_path() {
+            writeln!(&mut output, "Removed source file {}", path.display())?;
+        }
+
+        Ok(Some(output))
     }
 }
 
-fn new(args: New) -> eyre::Result<()> {
-    let action = args.overwrite.action();
-    let key_dest = KeyDestination::from_args(&args.key.destination, &args.name);
-    let mut entry = SourceEntry::from_new_args(args)?;
-
-    entry.install_key(&key_dest)?;
-    entry.install(action)?;
-
-    print_create_action(action, &key_dest, &entry);
-
-    Ok(())
-}
-
-fn add(args: Add) -> eyre::Result<()> {
-    let action = args.overwrite.action();
-    let key_dest = KeyDestination::from_args(&args.key.destination, &args.name);
-    let mut entry = SourceEntry::from_add_args(args)?;
-
-    entry.install_key(&key_dest)?;
-    entry.install(action)?;
-
-    print_create_action(action, &key_dest, &entry);
-
-    Ok(())
-}
-
-fn print_convert_action(converter: &EntryConverter) {
-    if path_is_stdio(converter.dest_path().as_ref()) {
-        // We're writing the file contents to stdout.
-        return;
-    }
-
-    if let Some(path) = converter.backup_path() {
-        println!("Backed up original source file to {}", path.display());
-    }
-
-    println!(
-        "Created new source file {}",
-        converter.dest_path().display()
-    );
-
-    if !path_is_stdio(converter.src_path().as_ref()) {
-        println!("Removed source file {}", converter.src_path().display());
-    }
-}
-
-fn convert(args: Convert) -> eyre::Result<()> {
-    let converter = EntryConverter::from_args(&args)?;
-
-    converter.convert()?;
-
-    print_convert_action(&converter);
-
-    Ok(())
-}
-
-impl Commands {
-    pub fn dispatch(self) -> eyre::Result<()> {
+impl cli::Commands {
+    pub fn dispatch(self) -> eyre::Result<Box<dyn Command>> {
         match self {
-            Commands::New(args) => new(args),
-            Commands::Add(args) => add(args),
-            Commands::Convert(args) => convert(args),
+            cli::Commands::New(args) => Ok(Box::new(NewCommand::new(args)?)),
+            cli::Commands::Add(args) => Ok(Box::new(AddCommand::new(args)?)),
+            cli::Commands::Convert(args) => Ok(Box::new(ConvertCommand::new(args)?)),
         }
     }
 }

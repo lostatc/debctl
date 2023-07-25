@@ -96,29 +96,33 @@ impl SourceEntry {
     }
 
     /// Construct an instance from the CLI `args`.
-    pub fn from_new_args(args: New) -> eyre::Result<Self> {
+    pub fn from_new_args(args: &New) -> eyre::Result<Self> {
         let mut options = args
             .option
-            .into_iter()
+            .iter()
             .map(|option| parse_custom_option(&option, args.force_literal_options))
             .collect::<Result<OptionMap, _>>()?;
 
-        options.insert(KnownOptionName::Uris, args.uri);
+        options.insert(KnownOptionName::Uris, args.uri.clone());
 
-        options.insert(KnownOptionName::Types, args.kind);
+        options.insert(KnownOptionName::Types, args.kind.clone());
 
-        options.insert(KnownOptionName::Components, args.component);
+        options.insert(KnownOptionName::Components, args.component.clone());
 
-        options.insert(KnownOptionName::Architectures, args.arch);
+        options.insert(KnownOptionName::Architectures, args.arch.clone());
 
-        options.insert(KnownOptionName::Languages, args.lang);
+        options.insert(KnownOptionName::Languages, args.lang.clone());
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
-        options.insert_or_else(KnownOptionName::Suites, args.suite, get_current_codename)?;
+        options.insert_or_else(
+            KnownOptionName::Suites,
+            args.suite.to_owned(),
+            get_current_codename,
+        )?;
 
-        if let Some(description) = args.description.description {
-            options.insert(KnownOptionName::RepolibName, description);
+        if let Some(description) = &args.description.description {
+            options.insert(KnownOptionName::RepolibName, description.clone());
         }
 
         Ok(Self {

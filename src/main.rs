@@ -26,14 +26,23 @@ fn main() -> eyre::Result<ExitCode> {
 
     let cli = Cli::parse();
 
-    if let Err(err) = cli.command.dispatch() {
-        // User-facing errors should not show a stack trace.
-        if let Some(user_facing_err) = err.downcast_ref::<Error>() {
-            eprintln!("{}", user_facing_err);
-            return Ok(ExitCode::FAILURE);
-        }
+    match cli.command.dispatch() {
+        Ok(mut command) => {
+            command.run()?;
 
-        return Err(err);
+            if let Some(report) = command.report()? {
+                println!("{}", report);
+            }
+        }
+        Err(err) => {
+            // User-facing errors should not show a stack trace.
+            if let Some(user_facing_err) = err.downcast_ref::<Error>() {
+                eprintln!("{}", user_facing_err);
+                return Ok(ExitCode::FAILURE);
+            }
+
+            return Err(err);
+        }
     }
 
     Ok(ExitCode::SUCCESS)

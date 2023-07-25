@@ -45,7 +45,7 @@ pub struct EntryConverter {
 
 impl Convert {
     /// The input source file.
-    pub fn in_file(&self) -> eyre::Result<SourceFile> {
+    fn in_file(&self) -> eyre::Result<SourceFile> {
         if let Some(name) = &self.name {
             Ok(SourceFile {
                 path: SourceFilePath::Installed {
@@ -66,7 +66,7 @@ impl Convert {
     }
 
     /// The output source file.
-    pub fn out_file(&self) -> eyre::Result<SourceFile> {
+    fn out_file(&self) -> eyre::Result<SourceFile> {
         if let Some(name) = &self.name {
             Ok(SourceFile {
                 path: SourceFilePath::Installed {
@@ -135,14 +135,26 @@ impl EntryConverter {
         })
     }
 
-    /// Return the path of the file we're converting.
-    pub fn src_path(&self) -> Cow<'_, Path> {
-        self.in_file.path()
+    /// Return the path of the file we're converting, or `None` if it's stdin.
+    pub fn src_path(&self) -> Option<Cow<'_, Path>> {
+        let path = self.in_file.path();
+
+        if path_is_stdio(&path) {
+            None
+        } else {
+            Some(path)
+        }
     }
 
-    /// Return the path the converted file is written to.
-    pub fn dest_path(&self) -> Cow<'_, Path> {
-        self.out_file.path()
+    /// Return the path the converted file is written to, or `None` if it's stdout.
+    pub fn dest_path(&self) -> Option<Cow<'_, Path>> {
+        let path = self.out_file.path();
+
+        if path_is_stdio(&path) {
+            None
+        } else {
+            Some(path)
+        }
     }
 
     /// Return the path the original file is backed up to.
