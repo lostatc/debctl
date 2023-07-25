@@ -7,8 +7,10 @@ use crate::key::KeyDestination;
 
 /// A CLI command.
 pub trait Command {
+    /// Run the command.
     fn run(&mut self) -> eyre::Result<()>;
 
+    /// Return an optional report of what the command did, to print to stdout.
     fn report(&self) -> eyre::Result<Option<String>>;
 }
 
