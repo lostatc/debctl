@@ -199,11 +199,14 @@ pub struct BackupArgs {}
 pub struct Convert {
     /// The name of the source file
     ///
-    /// This looks for a file in /etc/apt/sources.list.d/ with this basename and replaces it.
+    /// This looks for a file in /etc/apt/sources.list.d/ with this basename and replaces it,
+    /// deleting the original.
     #[arg(short, long)]
     pub name: Option<String>,
 
     /// The path of the single-line-style file to convert
+    ///
+    /// You must use this with --out. Unlike with --name, this file is not deleted.
     ///
     /// This can be `-` to read from stdin.
     #[arg(
@@ -218,6 +221,8 @@ pub struct Convert {
 
     /// The path of the deb822 file to generate
     ///
+    /// You must use this with --in.
+    ///
     /// This can be `-` to write to stdout.
     #[arg(
         long = "out",
@@ -229,11 +234,11 @@ pub struct Convert {
     )]
     pub out_path: Option<PathBuf>,
 
-    /// Backup the original `.list` file to `.list.bak`
+    /// Backup the original `.list` file to `.list.bak` before replacing it
     #[arg(long, requires = "name", conflicts_with = "backup_to")]
     pub backup: bool,
 
-    /// Backup the original `.list` file to this path
+    /// Backup the original `.list` file to this path before replacing it
     #[arg(
         long,
         value_name = "PATH",
