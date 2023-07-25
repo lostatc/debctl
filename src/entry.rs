@@ -1,10 +1,10 @@
-use std::borrow::Cow;
+use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use eyre::{bail, eyre, WrapErr};
+use eyre::{bail, WrapErr};
 use reqwest::Url;
 
 use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
@@ -35,13 +35,12 @@ impl OverwriteArgs {
     }
 }
 
-/// What will probably happen when we install the source file.
+/// A plan for how we will install the source entry.
 ///
-/// This is used so that we can provide useful output when the user passes `--dry-run`. Because the
-/// source file might be created between this plan being generated and the file actually being
-/// opened, we can't guarantee that this is exactly what will happen.
+/// Because a file might be created at the source file's path between this plan being generated and
+/// the file actually being opened, we can't guarantee that this is exactly what will happen.
 #[derive(Debug, Clone, Copy)]
-pub enum InstallPlan {
+pub enum InstallPlanAction {
     /// The source file was created.
     Create,
 
@@ -52,19 +51,51 @@ pub enum InstallPlan {
     Append,
 }
 
-impl InstallPlan {
-    pub fn new(path: &Path, action: OverwriteAction) -> eyre::Result<Self> {
-        if !path.exists() {
-            return Ok(Self::Create);
-        }
+/// A plan for what will occur when we install the source entry.
+///
+/// The purpose of this type is to provide user-facing output explaining what will happen when we
+/// install the source file, even without actually installing anything, such as when the user passes
+/// `--dry-run`.
+#[derive(Debug, Clone)]
+pub struct InstallPlan {
+    path: PathBuf,
+    action: InstallPlanAction,
+}
 
-        match action {
-            OverwriteAction::Overwrite => Ok(Self::Overwrite),
-            OverwriteAction::Append => Ok(Self::Append),
-            OverwriteAction::Fail => Err(eyre!(Error::NewSourceFileAlreadyExists {
-                path: path.to_owned(),
-            })),
-        }
+impl fmt::Display for InstallPlan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.action {
+            InstallPlanAction::Create => f.write_fmt(format_args!(
+                "Created new source file: {}",
+                self.path.display()
+            )),
+            InstallPlanAction::Overwrite => f.write_fmt(format_args!(
+                "Overwrote existing source file: {}",
+                self.path.display()
+            )),
+            InstallPlanAction::Append => f.write_fmt(format_args!(
+                "Appended new entry to existing source file: {}",
+                self.path.display()
+            )),
+        }?;
+
+        Ok(())
+    }
+}
+
+impl InstallPlan {
+    fn new(path: &Path, action: OverwriteAction) -> eyre::Result<Self> {
+        Ok(Self {
+            path: path.to_owned(),
+            action: match (action, path.exists()) {
+                (OverwriteAction::Overwrite, _) => InstallPlanAction::Overwrite,
+                (OverwriteAction::Append, _) => InstallPlanAction::Append,
+                (OverwriteAction::Fail, false) => InstallPlanAction::Create,
+                (OverwriteAction::Fail, true) => bail!(Error::NewSourceFileAlreadyExists {
+                    path: path.to_owned(),
+                }),
+            },
+        })
     }
 }
 
@@ -123,9 +154,9 @@ impl SourceEntry {
         Self { file, options, key }
     }
 
-    /// The path this entry will be installed to.
-    pub fn path(&self) -> Cow<'_, Path> {
-        self.file.path()
+    /// A plan for what installing this entry will do.
+    pub fn plan(&self, action: OverwriteAction) -> eyre::Result<InstallPlan> {
+        InstallPlan::new(&self.file.path(), action)
     }
 
     /// Construct an instance from the CLI `args`.

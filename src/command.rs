@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use crate::cli;
 use crate::convert::EntryConverter;
-use crate::entry::{InstallPlan, OverwriteAction, SourceEntry};
+use crate::entry::{OverwriteAction, SourceEntry};
 use crate::key::KeyDestination;
 
 /// A CLI command.
@@ -16,21 +16,16 @@ pub trait Command {
 
 pub struct NewCommand {
     action: OverwriteAction,
-    plan: InstallPlan,
     key_dest: KeyDestination,
     entry: SourceEntry,
 }
 
 impl NewCommand {
     pub fn new(args: cli::New) -> eyre::Result<Self> {
-        let entry = SourceEntry::from_new_args(&args)?;
-        let action = args.overwrite.action();
-
         Ok(Self {
-            action,
-            plan: InstallPlan::new(&entry.path(), action)?,
+            action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
-            entry,
+            entry: SourceEntry::from_new_args(&args)?,
         })
     }
 }
@@ -50,23 +45,7 @@ impl Command for NewCommand {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
-        match self.plan {
-            InstallPlan::Create => writeln!(
-                &mut output,
-                "Created new source file: {}",
-                self.entry.path().display()
-            )?,
-            InstallPlan::Overwrite => writeln!(
-                &mut output,
-                "Overwrote existing source file: {}",
-                self.entry.path().display()
-            )?,
-            InstallPlan::Append => writeln!(
-                &mut output,
-                "Appended new entry to existing source file: {}",
-                self.entry.path().display()
-            )?,
-        };
+        writeln!(&mut output, "{}", self.entry.plan(self.action)?)?;
 
         Ok(Some(output))
     }
@@ -74,21 +53,16 @@ impl Command for NewCommand {
 
 pub struct AddCommand {
     action: OverwriteAction,
-    plan: InstallPlan,
     key_dest: KeyDestination,
     entry: SourceEntry,
 }
 
 impl AddCommand {
     pub fn new(args: cli::Add) -> eyre::Result<Self> {
-        let entry = SourceEntry::from_add_args(&args)?;
-        let action = args.overwrite.action();
-
         Ok(Self {
-            action,
-            plan: InstallPlan::new(&entry.path(), action)?,
+            action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
-            entry,
+            entry: SourceEntry::from_add_args(&args)?,
         })
     }
 }
@@ -108,23 +82,7 @@ impl Command for AddCommand {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
-        match self.plan {
-            InstallPlan::Create => writeln!(
-                &mut output,
-                "Created new source file: {}",
-                self.entry.path().display()
-            )?,
-            InstallPlan::Overwrite => writeln!(
-                &mut output,
-                "Overwrote existing source file: {}",
-                self.entry.path().display()
-            )?,
-            InstallPlan::Append => writeln!(
-                &mut output,
-                "Appended new entry to existing source file: {}",
-                self.entry.path().display()
-            )?,
-        };
+        writeln!(&mut output, "{}", self.entry.plan(self.action)?)?;
 
         Ok(Some(output))
     }
