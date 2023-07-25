@@ -21,15 +21,26 @@ pub enum KeyDestination {
 }
 
 impl KeyDestination {
+    const DEFAULT_KEYRING_DIR: &str = "/etc/apt/keyrings";
+
     /// Create an instance from CLI args.
     pub fn from_args(args: &KeyDestinationArgs, name: &str) -> Self {
         if args.inline_key {
             Self::Inline
         } else {
             Self::File {
-                path: args
-                    .keyring_dir
-                    .join(format!("{}-archive-keyring.gpg", name)),
+                path: match &args.key_path {
+                    Some(path) => path.to_owned(),
+                    // This Debian wiki page recommends the `%s-archive-keyring.gpg` file naming
+                    // convention:
+                    // https://wiki.debian.org/DebianRepository/UseThirdParty
+                    None => [
+                        Self::DEFAULT_KEYRING_DIR,
+                        &format!("{}-archive-keyring.gpg", name),
+                    ]
+                    .iter()
+                    .collect(),
+                },
             }
         }
     }

@@ -38,9 +38,11 @@ pub struct KeySourceArgs {
 #[derive(Args)]
 #[group(required = false, multiple = false)]
 pub struct KeyDestinationArgs {
-    /// The directory to install the repository signing key to
-    #[arg(long, value_name = "PATH", default_value = "/etc/apt/keyrings")]
-    pub keyring_dir: PathBuf,
+    /// The path to install the repository signing key to
+    ///
+    /// By default, it's installed under /etc/apt/keyrings.
+    #[arg(long, value_name = "PATH")]
+    pub key_path: Option<PathBuf>,
 
     /// Inline the repository signing key into the source entry instead of installing it to a
     /// separate file
