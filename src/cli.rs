@@ -52,7 +52,7 @@ pub struct KeyDestinationArgs {
 
     /// Inline the repository signing key into the source entry instead of installing it to a
     /// separate file
-    #[arg(long)]
+    #[arg(short, long)]
     pub inline_key: bool,
 }
 
