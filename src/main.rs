@@ -28,7 +28,9 @@ fn main() -> eyre::Result<ExitCode> {
 
     match cli.command.dispatch() {
         Ok(mut command) => {
-            command.run()?;
+            if !cli.dry_run {
+                command.run()?;
+            }
 
             if let Some(report) = command.report()? {
                 println!("{}", report);

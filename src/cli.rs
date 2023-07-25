@@ -7,6 +7,10 @@ use crate::types::SourceType;
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Cli {
+    /// Don't do anything; just show what would have happened
+    #[arg(long)]
+    pub dry_run: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
