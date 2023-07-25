@@ -20,31 +20,37 @@ use std::process::ExitCode;
 use clap::Parser;
 use cli::Cli;
 use error::Error;
+use pgp::set_gpg_path;
+
+fn run() -> eyre::Result<()> {
+    let cli = Cli::parse();
+
+    set_gpg_path(&cli.gpg_path);
+
+    let mut command = cli.command.dispatch()?;
+
+    if !cli.dry_run {
+        command.run()?;
+    }
+
+    if let Some(report) = command.report()? {
+        println!("{}", report);
+    }
+
+    Ok(())
+}
 
 fn main() -> eyre::Result<ExitCode> {
     color_eyre::install()?;
 
-    let cli = Cli::parse();
-
-    match cli.command.dispatch() {
-        Ok(mut command) => {
-            if !cli.dry_run {
-                command.run()?;
-            }
-
-            if let Some(report) = command.report()? {
-                println!("{}", report);
-            }
+    if let Err(err) = run() {
+        // User-facing errors should not show a stack trace.
+        if let Some(user_err) = err.downcast_ref::<Error>() {
+            eprintln!("{}", user_err);
+            return Ok(ExitCode::FAILURE);
         }
-        Err(err) => {
-            // User-facing errors should not show a stack trace.
-            if let Some(user_facing_err) = err.downcast_ref::<Error>() {
-                eprintln!("{}", user_facing_err);
-                return Ok(ExitCode::FAILURE);
-            }
 
-            return Err(err);
-        }
+        return Err(err);
     }
 
     Ok(ExitCode::SUCCESS)

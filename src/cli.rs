@@ -11,6 +11,12 @@ pub struct Cli {
     #[arg(long)]
     pub dry_run: bool,
 
+    /// The path of the GnuPG binary.
+    ///
+    /// This tool shells out to GnuPG. You can use this to override the path of the GnuPG command.
+    #[arg(long, value_name = "PATH", default_value = "gpg")]
+    pub gpg_path: String,
+
     #[command(subcommand)]
     pub command: Commands,
 }
