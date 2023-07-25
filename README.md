@@ -18,12 +18,11 @@ format and implements modern best practices for managing signing keys.
 ## Features
 
 - Add new repositories to your system in deb822 format.
-- Fetches signing keys from a local file path, a URL, or a keyserver and trusts
-  them for only the repository they're signing via the `Signed-By` option.
 - Migrate existing files from the old `.list` format to the deb822 `.sources`
   format.
+- Fetches signing keys from a local file path, a URL, or a keyserver and trusts
+  them for only the repository they're signing via the `Signed-By` option.
 - Keys can be installed in a keyring or inlined into the `.sources` file.
-- Append new entries to existing `.sources` files.
 - Generally encourages best practices, but provides escape hatches for doing
   weird stuff.
 
