@@ -27,7 +27,7 @@ pub struct KeySourceArgs {
     /// The public signing key for the repo
     ///
     /// This accepts the URL or local file path of a PGP key, in either binary or armored format.
-    /// The key is downloaded and installed to the directory specified by --keyring-dir.
+    /// The key is downloaded and installed to /etc/apt/keyrings unless you pass --key-path.
     ///
     /// If you pass --keyserver, this is the key fingerprint.
     #[arg(short, long)]
