@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -30,6 +31,50 @@ impl BackupMode {
                 path: path.to_owned(),
             })
         }
+    }
+}
+
+/// A plan for what will occur when we convert the source entry.
+///
+/// The purpose of this type is to provide user-facing output explaining what will happen when we
+/// convert the source file, even without actually doing anything, such as when the user passes
+/// `--dry-run`.
+#[derive(Debug, Clone)]
+pub struct ConvertPlan {
+    output_is_stdout: bool,
+    backed_up: Option<PathBuf>,
+    created: Option<PathBuf>,
+    removed: Option<PathBuf>,
+}
+
+impl fmt::Display for ConvertPlan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.output_is_stdout {
+            return Ok(());
+        }
+
+        if let Some(path) = &self.backed_up {
+            f.write_fmt(format_args!(
+                "Backed up original source file: {}\n",
+                path.display()
+            ))?;
+        }
+
+        if let Some(path) = &self.created {
+            f.write_fmt(format_args!(
+                "Created new source file: {}\n",
+                path.display(),
+            ))?;
+        }
+
+        if let Some(path) = &self.removed {
+            f.write_fmt(format_args!(
+                "Removed original source file: {}\n",
+                path.display(),
+            ))?;
+        }
+
+        Ok(())
     }
 }
 
@@ -135,30 +180,26 @@ impl EntryConverter {
         })
     }
 
-    /// Return the path of the file we're converting, or `None` if it's stdin.
-    pub fn src_path(&self) -> Option<Cow<'_, Path>> {
-        let path = self.in_file.path();
-
-        if path_is_stdio(&path) {
-            None
-        } else {
-            Some(path)
-        }
-    }
-
-    /// Return the path the converted file is written to, or `None` if it's stdout.
-    pub fn dest_path(&self) -> Option<Cow<'_, Path>> {
-        let path = self.out_file.path();
-
-        if path_is_stdio(&path) {
-            None
-        } else {
-            Some(path)
+    /// A plan for what converting the entry will do.
+    pub fn plan(&self) -> ConvertPlan {
+        ConvertPlan {
+            output_is_stdout: path_is_stdio(&self.out_file.path()),
+            backed_up: self.backup_path().map(Cow::into_owned),
+            created: if path_is_stdio(&self.out_file.path()) {
+                None
+            } else {
+                Some(self.out_file.path().into_owned())
+            },
+            removed: if self.remove_original {
+                Some(self.in_file.path().into_owned())
+            } else {
+                None
+            },
         }
     }
 
     /// Return the path the original file is backed up to.
-    pub fn backup_path(&self) -> Option<Cow<'_, Path>> {
+    fn backup_path(&self) -> Option<Cow<'_, Path>> {
         match &self.backup_mode {
             Some(BackupMode::Backup) => Some(Cow::Owned(PathBuf::from(
                 format!(

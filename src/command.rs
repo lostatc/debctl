@@ -45,7 +45,7 @@ impl Command for NewCommand {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
-        writeln!(&mut output, "{}", self.entry.plan(self.action)?)?;
+        write!(&mut output, "{}", self.entry.plan(self.action)?)?;
 
         Ok(Some(output))
     }
@@ -82,7 +82,7 @@ impl Command for AddCommand {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
-        writeln!(&mut output, "{}", self.entry.plan(self.action)?)?;
+        write!(&mut output, "{}", self.entry.plan(self.action)?)?;
 
         Ok(Some(output))
     }
@@ -110,31 +110,7 @@ impl Command for ConvertCommand {
     fn report(&self) -> eyre::Result<Option<String>> {
         let mut output = String::new();
 
-        if self.converter.dest_path().is_none() {
-            // We're writing the converted source entry to stdout, so we don't want to print any
-            // output.
-            return Ok(None);
-        }
-
-        if let Some(path) = self.converter.backup_path() {
-            writeln!(
-                &mut output,
-                "Backed up original source file: {}",
-                path.display()
-            )?;
-        }
-
-        if let Some(path) = self.converter.dest_path() {
-            writeln!(&mut output, "Created new source file: {}", path.display())?;
-        }
-
-        if let Some(path) = self.converter.src_path() {
-            writeln!(
-                &mut output,
-                "Removed existing source file: {}",
-                path.display()
-            )?;
-        }
+        write!(&mut output, "{}", self.converter.plan())?;
 
         Ok(Some(output))
     }

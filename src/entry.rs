@@ -54,7 +54,7 @@ pub enum InstallPlanAction {
 /// A plan for what will occur when we install the source entry.
 ///
 /// The purpose of this type is to provide user-facing output explaining what will happen when we
-/// install the source file, even without actually installing anything, such as when the user passes
+/// install the source file, even without actually doing anything, such as when the user passes
 /// `--dry-run`.
 #[derive(Debug, Clone)]
 pub struct InstallPlan {
@@ -66,15 +66,15 @@ impl fmt::Display for InstallPlan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.action {
             InstallPlanAction::Create => f.write_fmt(format_args!(
-                "Created new source file: {}",
+                "Created new source file: {}\n",
                 self.path.display()
             )),
             InstallPlanAction::Overwrite => f.write_fmt(format_args!(
-                "Overwrote existing source file: {}",
+                "Overwrote existing source file: {}\n",
                 self.path.display()
             )),
             InstallPlanAction::Append => f.write_fmt(format_args!(
-                "Appended new entry to existing source file: {}",
+                "Appended new entry to existing source file: {}\n",
                 self.path.display()
             )),
         }?;
