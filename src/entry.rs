@@ -4,7 +4,7 @@ use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::process::Command;
 
-use eyre::{bail, WrapErr};
+use eyre::{bail, eyre, WrapErr};
 use reqwest::Url;
 
 use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
@@ -31,6 +31,39 @@ impl OverwriteArgs {
             OverwriteAction::Append
         } else {
             OverwriteAction::Fail
+        }
+    }
+}
+
+/// What will probably happen when we install the source file.
+///
+/// This is used so that we can provide useful output when the user passes `--dry-run`. Because the
+/// source file might be created between this plan being generated and the file actually being
+/// opened, we can't guarantee that this is exactly what will happen.
+#[derive(Debug, Clone, Copy)]
+pub enum InstallPlan {
+    /// The source file was created.
+    Create,
+
+    /// The source file was overwritten.
+    Overwrite,
+
+    /// The source file was appended to.
+    Append,
+}
+
+impl InstallPlan {
+    pub fn new(path: &Path, action: OverwriteAction) -> eyre::Result<Self> {
+        if !path.exists() {
+            return Ok(Self::Create);
+        }
+
+        match action {
+            OverwriteAction::Overwrite => Ok(Self::Overwrite),
+            OverwriteAction::Append => Ok(Self::Append),
+            OverwriteAction::Fail => Err(eyre!(Error::NewSourceFileAlreadyExists {
+                path: path.to_owned(),
+            })),
         }
     }
 }
@@ -138,14 +171,14 @@ impl SourceEntry {
     }
 
     /// Construct an instance from the CLI `args`.
-    pub fn from_add_args(args: Add) -> eyre::Result<Self> {
+    pub fn from_add_args(args: &Add) -> eyre::Result<Self> {
         let mut options = parse_line_entry(&args.line)
             .wrap_err("failed parsing single-line-style source entry")?;
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
-        if let Some(description) = args.description.description {
-            options.insert(KnownOptionName::RepolibName, description);
+        if let Some(description) = &args.description.description {
+            options.insert(KnownOptionName::RepolibName, description.clone());
         }
 
         Ok(Self {
