@@ -100,7 +100,7 @@ impl SourceEntry {
         let mut options = args
             .option
             .iter()
-            .map(|option| parse_custom_option(&option, args.force_literal_options))
+            .map(|option| parse_custom_option(option, args.force_literal_options))
             .collect::<Result<OptionMap, _>>()?;
 
         options.insert(KnownOptionName::Uris, args.uri.clone());
