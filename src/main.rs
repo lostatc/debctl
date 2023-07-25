@@ -1,6 +1,4 @@
 #![forbid(unsafe_code)]
-// TODO: Remove
-#![allow(dead_code)]
 
 mod cli;
 mod command;

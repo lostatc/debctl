@@ -216,11 +216,6 @@ impl Key {
         })
     }
 
-    /// The encoding of this key.
-    pub fn encoding(&self) -> KeyEncoding {
-        self.encoding
-    }
-
     /// Dearmor this key.
     pub fn dearmor(self) -> eyre::Result<Self> {
         if self.encoding == KeyEncoding::Binary {
