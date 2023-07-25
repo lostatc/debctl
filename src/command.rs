@@ -3,6 +3,7 @@ use std::fmt::Write;
 use crate::cli;
 use crate::convert::EntryConverter;
 use crate::entry::{OverwriteAction, SourceEntry};
+use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::key::KeyDestination;
 
 /// A CLI command.
@@ -18,6 +19,7 @@ pub struct NewCommand {
     action: OverwriteAction,
     key_dest: KeyDestination,
     entry: SourceEntry,
+    source_file: SourceFile,
 }
 
 impl NewCommand {
@@ -26,6 +28,12 @@ impl NewCommand {
             action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
             entry: SourceEntry::from_new_args(&args)?,
+            source_file: SourceFile {
+                path: SourceFilePath::Installed {
+                    name: args.name.clone(),
+                },
+                kind: SourceFileKind::Deb822,
+            },
         })
     }
 }
@@ -33,7 +41,7 @@ impl NewCommand {
 impl Command for NewCommand {
     fn run(&mut self) -> eyre::Result<()> {
         self.entry.install_key(&self.key_dest)?;
-        self.entry.install(self.action)?;
+        self.entry.install(&self.source_file, self.action)?;
 
         Ok(())
     }
@@ -45,7 +53,11 @@ impl Command for NewCommand {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
-        write!(&mut output, "{}", self.entry.plan(self.action)?)?;
+        write!(
+            &mut output,
+            "{}",
+            self.entry.plan(&self.source_file, self.action)?
+        )?;
 
         Ok(Some(output))
     }
@@ -55,6 +67,7 @@ pub struct AddCommand {
     action: OverwriteAction,
     key_dest: KeyDestination,
     entry: SourceEntry,
+    source_file: SourceFile,
 }
 
 impl AddCommand {
@@ -63,6 +76,12 @@ impl AddCommand {
             action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
             entry: SourceEntry::from_add_args(&args)?,
+            source_file: SourceFile {
+                path: SourceFilePath::Installed {
+                    name: args.name.clone(),
+                },
+                kind: SourceFileKind::Deb822,
+            },
         })
     }
 }
@@ -70,7 +89,7 @@ impl AddCommand {
 impl Command for AddCommand {
     fn run(&mut self) -> eyre::Result<()> {
         self.entry.install_key(&self.key_dest)?;
-        self.entry.install(self.action)?;
+        self.entry.install(&self.source_file, self.action)?;
 
         Ok(())
     }
@@ -82,7 +101,11 @@ impl Command for AddCommand {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
-        write!(&mut output, "{}", self.entry.plan(self.action)?)?;
+        write!(
+            &mut output,
+            "{}",
+            self.entry.plan(&self.source_file, self.action)?
+        )?;
 
         Ok(Some(output))
     }

@@ -9,7 +9,7 @@ use reqwest::Url;
 
 use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
 use crate::error::Error;
-use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
+use crate::file::SourceFile;
 use crate::key::{KeyDestination, KeySource, SigningKey};
 use crate::option::{KnownOptionName, OptionMap};
 use crate::parse::{parse_custom_option, parse_line_entry};
@@ -102,7 +102,6 @@ impl InstallPlan {
 /// A repository source entry.
 #[derive(Debug)]
 pub struct SourceEntry {
-    file: SourceFile,
     options: OptionMap,
     key: Option<KeySource>,
 }
@@ -150,13 +149,13 @@ impl SigningKeyArgs {
 
 impl SourceEntry {
     /// Create a new instance.
-    pub fn new(file: SourceFile, options: OptionMap, key: Option<KeySource>) -> Self {
-        Self { file, options, key }
+    pub fn new(options: OptionMap, key: Option<KeySource>) -> Self {
+        Self { options, key }
     }
 
     /// A plan for what installing this entry will do.
-    pub fn plan(&self, action: OverwriteAction) -> eyre::Result<InstallPlan> {
-        InstallPlan::new(&self.file.path(), action)
+    pub fn plan(&self, file: &SourceFile, action: OverwriteAction) -> eyre::Result<InstallPlan> {
+        InstallPlan::new(&file.path(), action)
     }
 
     /// Construct an instance from the CLI `args`.
@@ -190,12 +189,6 @@ impl SourceEntry {
         }
 
         Ok(Self {
-            file: SourceFile {
-                path: SourceFilePath::Installed {
-                    name: args.name.clone(),
-                },
-                kind: SourceFileKind::Deb822,
-            },
             options,
             key: args.key.key_source()?,
         })
@@ -213,12 +206,6 @@ impl SourceEntry {
         }
 
         Ok(Self {
-            file: SourceFile {
-                path: SourceFilePath::Installed {
-                    name: args.name.clone(),
-                },
-                kind: SourceFileKind::Deb822,
-            },
             options,
             key: args.key.key_source()?,
         })
@@ -322,8 +309,8 @@ impl SourceEntry {
     }
 
     /// Install this source entry as a file in deb822 format.
-    pub fn install(&self, action: OverwriteAction) -> eyre::Result<()> {
-        let mut file = self.open_source_file(&self.file.path(), action)?;
+    pub fn install(&self, file: &SourceFile, action: OverwriteAction) -> eyre::Result<()> {
+        let mut file = self.open_source_file(&file.path(), action)?;
 
         self.install_to(&mut file, action)
     }

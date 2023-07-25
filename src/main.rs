@@ -32,7 +32,7 @@ fn run() -> eyre::Result<()> {
     }
 
     if let Some(report) = command.report()? {
-        println!("{}", report);
+        eprintln!("{}", report);
     }
 
     Ok(())
