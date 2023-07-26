@@ -204,7 +204,7 @@ pub struct Convert {
     #[arg(short, long)]
     pub name: Option<String>,
 
-    /// The path of the single-line-style file to convert
+    /// The path of the one-line-style file to convert
     ///
     /// You must use this with --out. Unlike with --name, this file is not deleted.
     ///
@@ -263,7 +263,10 @@ pub enum Commands {
     /// deb [ option1=value1 option2=value2 ] uri suite [component1] [component2] [...]
     Add(Add),
 
-    /// Convert a single-line-style `.list` file to a deb822 `.sources` file
+    /// Convert a one-line-style `.list` file to a deb822 `.sources` file
+    ///
+    /// Comments in the `.list` file are preserved, and entries that are commented out in the
+    /// `.list` file are converted to disabled entries in the `.sources` file.
     ///
     /// You must pass either --name or both --in and --out.
     Convert(Convert),

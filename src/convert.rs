@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Seek, SeekFrom};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use eyre::{bail, eyre, WrapErr};
@@ -9,8 +9,7 @@ use crate::cli::Convert;
 use crate::entry::{OverwriteAction, SourceEntry};
 use crate::error::Error;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
-use crate::option::OptionMap;
-use crate::parse::parse_line_file;
+use crate::parse::{parse_line_file, ConvertedLineEntry};
 
 /// How to back up the original file when converting a repo source file.
 #[derive(Debug)]
@@ -102,7 +101,7 @@ impl fmt::Display for ConvertPlan {
 /// A converter for converting a repo source file from the single-line syntax to the deb822 syntax.
 #[derive(Debug)]
 pub struct EntryConverter {
-    options: Vec<OptionMap>,
+    entries: Vec<ConvertedLineEntry>,
     backup_mode: Option<BackupMode>,
     in_file: InputStream,
     out_file: OutputStream,
@@ -181,7 +180,7 @@ impl EntryConverter {
             },
         };
 
-        let options = match parse_line_file(&mut source_stream) {
+        let entries = match parse_line_file(&mut source_stream) {
             Ok(options) => options,
             Err(err) => match (in_file, err.downcast_ref::<io::Error>()) {
                 (InputStream::File(source_file), Some(io_err))
@@ -198,7 +197,7 @@ impl EntryConverter {
         let backup_mode = BackupMode::from_args(args);
 
         Ok(EntryConverter {
-            options,
+            entries,
             backup_mode,
             in_file,
             out_file,
@@ -346,12 +345,23 @@ impl EntryConverter {
             Err(err) => bail!(err.wrap_err("failed opening `.sources` destination file")),
         };
 
-        for options in &self.options {
-            let entry = SourceEntry::new(options.clone(), None);
+        for line_entry in &self.entries {
+            match line_entry {
+                ConvertedLineEntry::Entry(options) => {
+                    let entry = SourceEntry::new(options.clone(), None);
 
-            entry
-                .install_to(&mut output_file, OverwriteAction::Append)
-                .wrap_err("failed installing converted `.sources` source file")?;
+                    entry
+                        .install_to(&mut output_file, OverwriteAction::Append)
+                        .wrap_err("failed installing converted `.sources` source file")?;
+
+                    // Adding a newline after stanzas ensures there's a blank line between the end
+                    // of the stanza and any adjacent comments.
+                    writeln!(&mut output_file)?;
+                }
+                ConvertedLineEntry::Comment(comment) => {
+                    writeln!(&mut output_file, "# {}", comment)?;
+                }
+            }
         }
 
         if let OutputStream::Stdout = self.out_file {
