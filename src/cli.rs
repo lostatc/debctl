@@ -246,6 +246,14 @@ pub struct Convert {
         conflicts_with = "backup"
     )]
     pub backup_to: Option<PathBuf>,
+
+    /// Don't preserve comments when converting.
+    #[arg(long)]
+    pub skip_comments: bool,
+
+    /// Don't preserve disabled entries when converting.
+    #[arg(long)]
+    pub skip_disabled: bool,
 }
 
 #[derive(Subcommand)]
@@ -265,8 +273,10 @@ pub enum Commands {
 
     /// Convert a one-line-style `.list` file to a deb822 `.sources` file
     ///
-    /// Comments in the `.list` file are preserved, and entries that are commented out in the
-    /// `.list` file are converted to disabled entries in the `.sources` file.
+    /// Comments in the `.list` file are preserved unless you pass --skip-comments.
+    ///
+    /// Valid entries that are commented out in the `.list` file are converted to disabled entries
+    /// in the `.sources` file unless you pass --skip-disabled.
     ///
     /// You must pass either --name or both --in and --out.
     Convert(Convert),

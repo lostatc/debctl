@@ -9,7 +9,7 @@ use crate::cli::Convert;
 use crate::entry::{OverwriteAction, SourceEntry};
 use crate::error::Error;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
-use crate::parse::{parse_line_file, ConvertedLineEntry};
+use crate::parse::{parse_line_file, ConvertedLineEntry, ParseLineFileOptions};
 
 /// How to back up the original file when converting a repo source file.
 #[derive(Debug)]
@@ -180,7 +180,12 @@ impl EntryConverter {
             },
         };
 
-        let entries = match parse_line_file(&mut source_stream) {
+        let parse_options = ParseLineFileOptions {
+            skip_comments: args.skip_comments,
+            skip_disabled: args.skip_disabled,
+        };
+
+        let entries = match parse_line_file(&mut source_stream, &parse_options) {
             Ok(options) => options,
             Err(err) => match (in_file, err.downcast_ref::<io::Error>()) {
                 (InputStream::File(source_file), Some(io_err))

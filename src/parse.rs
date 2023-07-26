@@ -116,11 +116,22 @@ pub enum ConvertedLineEntry {
 /// The character used to comment out lines in a one-line-style source file.
 const COMMENT_CHAR: char = '#';
 
+/// Options for parsing a one-line-style source file.
+#[derive(Debug, Clone)]
+pub struct ParseLineFileOptions {
+    pub skip_comments: bool,
+    pub skip_disabled: bool,
+}
+
 /// Parse a file of one-line-style source entries.
 ///
-/// Comments are preserved, and entries that are commented out are converted to disabled entries in
-/// the output.
-pub fn parse_line_file(mut file: impl Read) -> eyre::Result<Vec<ConvertedLineEntry>> {
+/// Comments are preserved unless `skip_comments` is true. Entries that are commented out are
+/// converted to disabled entries in the output unless `skip_disabled` is true.
+///
+pub fn parse_line_file(
+    mut file: impl Read,
+    options: &ParseLineFileOptions,
+) -> eyre::Result<Vec<ConvertedLineEntry>> {
     let mut entry_list = Vec::new();
 
     for line_result in BufReader::new(&mut file).lines() {
@@ -141,16 +152,24 @@ pub fn parse_line_file(mut file: impl Read) -> eyre::Result<Vec<ConvertedLineEnt
             // Check if the part after the first comment char is a valid line entry. If it is, we
             // create a new disabled entry in the converted output file..
             match parse_line_entry(disabled_line) {
-                Ok(mut options) => {
-                    // Disable this entry.
-                    options.insert(KnownOptionName::Enabled, false);
+                Ok(mut option_map) => {
+                    if options.skip_disabled {
+                        continue;
+                    }
 
-                    ConvertedLineEntry::Entry(options)
+                    // Disable this entry.
+                    option_map.insert(KnownOptionName::Enabled, false);
+
+                    ConvertedLineEntry::Entry(option_map)
                 }
                 Err(err) => match err.downcast_ref::<Error>() {
                     // Don't fail on a malformed line entry here. If the part after the first
                     // comment char isn't a valid line entry, that just means it's a normal comment.
                     Some(Error::MalformedOneLineEntry { .. }) => {
+                        if options.skip_comments {
+                            continue;
+                        }
+
                         ConvertedLineEntry::Comment(disabled_line.to_string())
                     }
                     _ => {
@@ -160,14 +179,14 @@ pub fn parse_line_file(mut file: impl Read) -> eyre::Result<Vec<ConvertedLineEnt
             }
         } else {
             // This is a normal not-commented-out line entry.
-            let mut options =
+            let mut option_map =
                 parse_line_entry(&line).wrap_err("failed parsing one-line-style source entry")?;
 
             // We always include the `Enabled` option, even for non-disabled entries. It makes
             // disabling them manually as a user easier.
-            options.insert(KnownOptionName::Enabled, true);
+            option_map.insert(KnownOptionName::Enabled, true);
 
-            ConvertedLineEntry::Entry(options)
+            ConvertedLineEntry::Entry(option_map)
         };
 
         entry_list.push(entry);
