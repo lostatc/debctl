@@ -235,7 +235,7 @@ pub struct Convert {
     pub out_path: Option<PathBuf>,
 
     /// Backup the original `.list` file to `.list.bak` before replacing it
-    #[arg(long, requires = "name", conflicts_with = "backup_to")]
+    #[arg(short, long, requires = "name", conflicts_with = "backup_to")]
     pub backup: bool,
 
     /// Backup the original `.list` file to this path before replacing it
