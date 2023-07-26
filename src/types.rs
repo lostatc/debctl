@@ -31,7 +31,7 @@ impl FromStr for SourceType {
         match s {
             "deb" => Ok(Deb),
             "deb-src" => Ok(DebSrc),
-            _ => Err(Error::MalformedSingleLineEntry {
+            _ => Err(Error::MalformedOneLineEntry {
                 reason: String::from("The entry must start with `deb` or `deb-src`."),
             }),
         }

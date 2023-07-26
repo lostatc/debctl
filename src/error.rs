@@ -20,8 +20,8 @@ pub enum Error {
     #[error("You must run this command as root.")]
     PermissionDenied,
 
-    #[error("This single-line-style entry is malformed.\n\n{reason}")]
-    MalformedSingleLineEntry { reason: String },
+    #[error("This one-line-style entry is malformed.\n\n{reason}")]
+    MalformedOneLineEntry { reason: String },
 
     #[error("This key is not a valid URL or file path: `{path}`.")]
     InvalidKeyLocation { path: String },

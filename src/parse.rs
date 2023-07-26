@@ -44,7 +44,7 @@ pub fn parse_custom_option(option: &str, force_literal: bool) -> eyre::Result<Op
 fn parse_option_name(option_name: &str) -> eyre::Result<KnownOptionName> {
     match KnownOptionName::from_str(option_name) {
         Ok(option_name) => Ok(option_name),
-        Err(_) => bail!(Error::MalformedSingleLineEntry {
+        Err(_) => bail!(Error::MalformedOneLineEntry {
             reason: format!(
                 "\
                 This is not a valid option name: `{option_name}`.\n\n\
@@ -55,11 +55,11 @@ fn parse_option_name(option_name: &str) -> eyre::Result<KnownOptionName> {
     }
 }
 
-/// Parse a single-line-style source entry.
+/// Parse a one-line-style source entry.
 pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     let line = match LineEntryParser::parse(Rule::line, entry) {
         Ok(mut result) => result.next().unwrap(),
-        Err(err) => bail!(Error::MalformedSingleLineEntry {
+        Err(err) => bail!(Error::MalformedOneLineEntry {
             reason: err.to_string()
         }),
     };
@@ -106,17 +106,17 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
     Ok(option_map)
 }
 
-/// A line in a single-line-style source file.
+/// A line in a one-line-style source file.
 #[derive(Debug, Clone)]
 pub enum ConvertedLineEntry {
     Entry(OptionMap),
     Comment(String),
 }
 
-/// The character used to comment out lines in a single-line-style source file.
+/// The character used to comment out lines in a one-line-style source file.
 const COMMENT_CHAR: char = '#';
 
-/// Parse a file of single-line-style source entries.
+/// Parse a file of one-line-style source entries.
 ///
 /// Comments are preserved, and entries that are commented out are converted to disabled entries in
 /// the output.
@@ -150,18 +150,18 @@ pub fn parse_line_file(mut file: impl Read) -> eyre::Result<Vec<ConvertedLineEnt
                 Err(err) => match err.downcast_ref::<Error>() {
                     // Don't fail on a malformed line entry here. If the part after the first
                     // comment char isn't a valid line entry, that just means it's a normal comment.
-                    Some(Error::MalformedSingleLineEntry { .. }) => {
+                    Some(Error::MalformedOneLineEntry { .. }) => {
                         ConvertedLineEntry::Comment(disabled_line.to_string())
                     }
                     _ => {
-                        bail!(err.wrap_err("failed parsing disabled single-line-style source entry"))
+                        bail!(err.wrap_err("failed parsing disabled one-line-style source entry"))
                     }
                 },
             }
         } else {
             // This is a normal not-commented-out line entry.
-            let mut options = parse_line_entry(&line)
-                .wrap_err("failed parsing single-line-style source entry")?;
+            let mut options =
+                parse_line_entry(&line).wrap_err("failed parsing one-line-style source entry")?;
 
             // We always include the `Enabled` option, even for non-disabled entries. It makes
             // disabling them manually as a user easier.

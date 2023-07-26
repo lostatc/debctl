@@ -74,8 +74,8 @@ impl FromStr for KnownOptionName {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use KnownOptionName::*;
 
-        // We accept option names as they appear in either the single-line syntax or the deb822
-        // syntax, without regard for case.
+        // We accept option names as they appear in either the one-line syntax or the deb822 syntax,
+        // without regard for case.
         match s.to_lowercase().as_str() {
             "types" => Ok(Types),
             "uris" => Ok(Uris),

@@ -196,8 +196,8 @@ impl SourceEntry {
 
     /// Construct an instance from the CLI `args`.
     pub fn from_add_args(args: &Add) -> eyre::Result<Self> {
-        let mut options = parse_line_entry(&args.line)
-            .wrap_err("failed parsing single-line-style source entry")?;
+        let mut options =
+            parse_line_entry(&args.line).wrap_err("failed parsing one-line-style source entry")?;
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 

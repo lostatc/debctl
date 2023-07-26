@@ -98,7 +98,7 @@ impl fmt::Display for ConvertPlan {
     }
 }
 
-/// A converter for converting a repo source file from the single-line syntax to the deb822 syntax.
+/// A converter for converting a repo source file from the one-line syntax to the deb822 syntax.
 #[derive(Debug)]
 pub struct EntryConverter {
     entries: Vec<ConvertedLineEntry>,
@@ -115,7 +115,7 @@ impl Convert {
                 path: SourceFilePath::Installed {
                     name: name.to_owned(),
                 },
-                kind: SourceFileKind::SingleLine,
+                kind: SourceFileKind::OneLine,
             })
         } else if let Some(path) = &self.in_path {
             if path_is_stdio(path) {
@@ -125,7 +125,7 @@ impl Convert {
                     path: SourceFilePath::File {
                         path: path.to_owned(),
                     },
-                    kind: SourceFileKind::SingleLine,
+                    kind: SourceFileKind::OneLine,
                 })
             }
         } else {

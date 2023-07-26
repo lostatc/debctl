@@ -16,8 +16,8 @@ pub enum SourceFilePath {
 /// A kind of repo source file.
 #[derive(Debug, Clone, Copy)]
 pub enum SourceFileKind {
-    /// A single-line-style source file.
-    SingleLine,
+    /// A one-line-style source file.
+    OneLine,
 
     /// A deb822-style source file.
     Deb822,
@@ -36,7 +36,7 @@ impl SourceFile {
     /// The path of this source file.
     pub fn path(&self) -> Cow<'_, Path> {
         let extension = match self.kind {
-            SourceFileKind::SingleLine => "list",
+            SourceFileKind::OneLine => "list",
             SourceFileKind::Deb822 => "sources",
         };
 
