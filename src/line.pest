@@ -6,7 +6,7 @@ source_type = { "deb-src" | "deb" }
 
 option_name = { ASCII_ALPHANUMERIC ~ ("-"* ~ ASCII_ALPHANUMERIC)* }
 
-option_value = { (!("," | "]" | space) ~ ANY)+ }
+option_value = { (!(space | "," | "[" | "]") ~ ANY)+ }
 
 value_list = { option_value ~ ("," ~ option_value)* }
 
@@ -14,6 +14,6 @@ option = { option_name ~ "=" ~ value_list }
 
 option_list = { "[" ~ space* ~ option ~ (space+ ~ option)* ~ space* ~ "]" }
 
-param = { (!space ~ ANY)+ }
+param = { (!(space | "[" | "]") ~ ANY)+ }
 
 line = { SOI ~ space* ~ source_type ~ (space+ ~ option_list)? ~ (space+ ~ param){2, } ~ space* ~ EOI }
