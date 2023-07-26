@@ -263,7 +263,6 @@ dependencies = [
  "clap",
  "color-eyre",
  "eyre",
- "once_cell",
  "pest",
  "pest_derive",
  "regex",

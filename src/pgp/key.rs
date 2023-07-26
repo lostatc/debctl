@@ -2,9 +2,9 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::OnceLock;
 
 use eyre::{bail, WrapErr};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::Url;
 
@@ -14,9 +14,14 @@ use crate::stdio::{read_stderr, read_stdout, wait, write_stdin};
 use super::command::{gpg_command, map_gpg_err};
 use super::keyring::Keyring;
 
+static PGP_ARMOR_REGEX: OnceLock<Regex> = OnceLock::new();
+
 /// A regex which matches the first line of an ASCII-armored public PGP key.
-static PGP_ARMOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"^\s*-----\s*BEGIN PGP PUBLIC KEY BLOCK\s*-----\s*$"#).unwrap());
+fn pgp_armor_regex() -> &'static Regex {
+    PGP_ARMOR_REGEX.get_or_init(|| {
+        Regex::new(r#"^\s*-----\s*BEGIN PGP PUBLIC KEY BLOCK\s*-----\s*$"#).unwrap()
+    })
+}
 
 /// Return whether the key in `file` is armored.
 ///
@@ -27,7 +32,7 @@ fn probe_key_encoding(key: impl Read) -> eyre::Result<KeyEncoding> {
 
     match reader.read_line(&mut first_line) {
         Ok(_) => {
-            if PGP_ARMOR_REGEX.is_match(&first_line) {
+            if pgp_armor_regex().is_match(&first_line) {
                 Ok(KeyEncoding::Armored)
             } else {
                 Ok(KeyEncoding::Binary)
