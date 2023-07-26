@@ -16,4 +16,4 @@ option_list = { "[" ~ space* ~ option ~ (space+ ~ option)* ~ space* ~ "]" }
 
 param = { (!(space | "[" | "]") ~ ANY)+ }
 
-line = { SOI ~ space* ~ source_type ~ (space+ ~ option_list)? ~ (space+ ~ param){2, } ~ space* ~ EOI }
+line = { SOI ~ space* ~ source_type ~ (space+ ~ option_list)? ~ (space+ ~ param){3, } ~ space* ~ EOI }

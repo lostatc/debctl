@@ -103,6 +103,10 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
         unreachable!("failed parsing uri, suite, and components")
     }
 
+    // We always include the `Enabled` option, even for non-disabled entries. It makes disabling
+    // them manually as a user easier.
+    option_map.insert(KnownOptionName::Enabled, true);
+
     Ok(option_map)
 }
 
@@ -179,12 +183,8 @@ pub fn parse_line_file(
             }
         } else {
             // This is a normal not-commented-out line entry.
-            let mut option_map =
+            let option_map =
                 parse_line_entry(&line).wrap_err("failed parsing one-line-style source entry")?;
-
-            // We always include the `Enabled` option, even for non-disabled entries. It makes
-            // disabling them manually as a user easier.
-            option_map.insert(KnownOptionName::Enabled, true);
 
             ConvertedLineEntry::Entry(option_map)
         };
@@ -193,4 +193,85 @@ pub fn parse_line_file(
     }
 
     Ok(entry_list)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::error::Error;
+    use crate::test::match_err;
+    use crate::types::SourceType;
+
+    use super::*;
+    use xpct::{consist_of, expect, pattern};
+
+    #[test]
+    fn correctly_parses_valid_line_entry() -> eyre::Result<()> {
+        let entry = "deb [arch=amd64 lang=en,de] https://example.com suite component1 component2";
+
+        let options = parse_line_entry(entry)?;
+
+        expect!(options.options()).to(consist_of([
+            (&KnownOptionName::Enabled.into(), &true.into()),
+            (
+                &KnownOptionName::Types.into(),
+                &vec![SourceType::Deb].into(),
+            ),
+            (
+                &KnownOptionName::Uris.into(),
+                &vec!["https://example.com"].into(),
+            ),
+            (&KnownOptionName::Suites.into(), &vec!["suite"].into()),
+            (
+                &KnownOptionName::Components.into(),
+                &vec!["component1", "component2"].into(),
+            ),
+            (
+                &KnownOptionName::Architectures.into(),
+                &vec!["amd64"].into(),
+            ),
+            (&KnownOptionName::Languages.into(), &vec!["en", "de"].into()),
+        ]));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_fails_on_unrecognized_option_name() -> eyre::Result<()> {
+        let entry = "deb [unrecognized=foo] https://example.com suite component1 component2";
+
+        expect!(parse_line_entry(entry))
+            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_fails_when_not_enough_segments() -> eyre::Result<()> {
+        let entry = "deb https://example.com suite";
+
+        expect!(parse_line_entry(entry))
+            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_fails_when_options_list_not_closed() -> eyre::Result<()> {
+        let entry = "deb [arch=amd64 https://example.com suite";
+
+        expect!(parse_line_entry(entry))
+            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_fails_when_type_is_unrecognized() -> eyre::Result<()> {
+        let entry = "invalid-type https://example.com suite component";
+
+        expect!(parse_line_entry(entry))
+            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+
+        Ok(())
+    }
 }

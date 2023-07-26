@@ -11,6 +11,7 @@ mod option;
 mod parse;
 mod pgp;
 mod stdio;
+mod test;
 mod types;
 
 use std::process::ExitCode;
