@@ -36,18 +36,11 @@ fn path_is_stdio(path: &Path) -> bool {
     path == Path::new("-")
 }
 
-/// A stream to read a source file from.
+/// A stream to read a source file from or write a source file to.
 #[derive(Debug, Clone)]
-enum InputStream {
+enum IoStream {
     File(SourceFile),
-    Stdin,
-}
-
-/// A stream to write a source file to.
-#[derive(Debug, Clone)]
-enum OutputStream {
-    File(SourceFile),
-    Stdout,
+    Stdio,
 }
 
 /// A plan for backing up a file.
@@ -103,25 +96,26 @@ impl fmt::Display for ConvertPlan {
 pub struct EntryConverter {
     entries: Vec<ConvertedLineEntry>,
     backup_mode: Option<BackupMode>,
-    in_file: InputStream,
-    out_file: OutputStream,
+    in_file: IoStream,
+    out_file: IoStream,
 }
 
 impl Convert {
     /// The input source file.
-    fn in_file(&self) -> eyre::Result<InputStream> {
+    fn in_file(&self, sources_dir: PathBuf) -> eyre::Result<IoStream> {
         Ok(if let Some(name) = &self.name {
-            InputStream::File(SourceFile {
+            IoStream::File(SourceFile {
                 path: SourceFilePath::Installed {
                     name: name.to_owned(),
+                    dir: sources_dir,
                 },
                 kind: SourceFileKind::OneLine,
             })
         } else if let Some(path) = &self.in_path {
             if path_is_stdio(path) {
-                InputStream::Stdin
+                IoStream::Stdio
             } else {
-                InputStream::File(SourceFile {
+                IoStream::File(SourceFile {
                     path: SourceFilePath::File {
                         path: path.to_owned(),
                     },
@@ -134,19 +128,20 @@ impl Convert {
     }
 
     /// The output source file.
-    fn out_file(&self) -> eyre::Result<OutputStream> {
+    fn out_file(&self, sources_dir: PathBuf) -> eyre::Result<IoStream> {
         Ok(if let Some(name) = &self.name {
-            OutputStream::File(SourceFile {
+            IoStream::File(SourceFile {
                 path: SourceFilePath::Installed {
                     name: name.to_owned(),
+                    dir: sources_dir,
                 },
                 kind: SourceFileKind::Deb822,
             })
         } else if let Some(path) = &self.out_path {
             if path_is_stdio(path) {
-                OutputStream::Stdout
+                IoStream::Stdio
             } else {
-                OutputStream::File(SourceFile {
+                IoStream::File(SourceFile {
                     path: SourceFilePath::File {
                         path: path.to_owned(),
                     },
@@ -163,13 +158,13 @@ impl EntryConverter {
     const BAKCKUP_EXT: &str = "bak";
 
     /// Construct an instance from CLI args.
-    pub fn from_args(args: &Convert) -> eyre::Result<Self> {
-        let in_file = args.in_file()?;
-        let out_file = args.out_file()?;
+    pub fn from_args(args: &Convert, sources_dir: PathBuf) -> eyre::Result<Self> {
+        let in_file = args.in_file(sources_dir.clone())?;
+        let out_file = args.out_file(sources_dir.clone())?;
 
-        let mut source_stream: Box<dyn Read> = match args.in_file()? {
-            InputStream::Stdin => Box::new(io::stdin()),
-            InputStream::File(source_file) => match File::open(source_file.path()) {
+        let mut source_stream: Box<dyn Read> = match &in_file {
+            IoStream::Stdio => Box::new(io::stdin()),
+            IoStream::File(source_file) => match File::open(source_file.path()) {
                 Ok(file) => Box::new(file),
                 Err(err) if err.kind() == io::ErrorKind::NotFound => {
                     bail!(Error::ConvertInFileNotFound {
@@ -188,7 +183,7 @@ impl EntryConverter {
         let entries = match parse_line_file(&mut source_stream, &parse_options) {
             Ok(options) => options,
             Err(err) => match (in_file, err.downcast_ref::<io::Error>()) {
-                (InputStream::File(source_file), Some(io_err))
+                (IoStream::File(source_file), Some(io_err))
                     if io_err.kind() == io::ErrorKind::NotFound =>
                 {
                     bail!(Error::ConvertInFileNotFound {
@@ -214,11 +209,11 @@ impl EntryConverter {
         ConvertPlan {
             backed_up: self.backup_plan().map(|plan| plan.backup),
             created: match &self.out_file {
-                OutputStream::File(source_file) => Some(source_file.path().into_owned()),
-                OutputStream::Stdout => None,
+                IoStream::File(source_file) => Some(source_file.path().into_owned()),
+                IoStream::Stdio => None,
             },
             removed: match &self.in_file {
-                InputStream::File(
+                IoStream::File(
                     path @ SourceFile {
                         path: SourceFilePath::Installed { .. },
                         ..
@@ -234,7 +229,7 @@ impl EntryConverter {
     /// If this returns `None`, no backup is necessary.
     fn backup_plan(&self) -> Option<BackupPlan> {
         match &self.in_file {
-            InputStream::File(source_file) => match &self.backup_mode {
+            IoStream::File(source_file) => match &self.backup_mode {
                 Some(BackupMode::Backup) => Some(BackupPlan {
                     original: source_file.path().into_owned(),
                     backup: PathBuf::from(format!(
@@ -249,7 +244,7 @@ impl EntryConverter {
                 }),
                 None => None,
             },
-            InputStream::Stdin => None,
+            IoStream::Stdio => None,
         }
     }
 
@@ -294,8 +289,8 @@ impl EntryConverter {
     /// If this returns `None`, then we're writing to stdout.
     fn open_dest_file(&self) -> eyre::Result<Option<File>> {
         let out_path = match &self.out_file {
-            OutputStream::File(source_file) => source_file.path(),
-            OutputStream::Stdout => return Ok(None),
+            IoStream::File(source_file) => source_file.path(),
+            IoStream::Stdio => return Ok(None),
         };
 
         let result = OpenOptions::new()
@@ -323,7 +318,7 @@ impl EntryConverter {
         match &self.in_file {
             // We only delete the original file if we're installing the new file directly into the
             // apt sources directory.
-            InputStream::File(
+            IoStream::File(
                 path @ SourceFile {
                     path: SourceFilePath::Installed { .. },
                     ..
@@ -372,7 +367,7 @@ impl EntryConverter {
             }
         }
 
-        if let OutputStream::Stdout = self.out_file {
+        if let IoStream::Stdio = self.out_file {
             output_file.seek(SeekFrom::Start(0))?;
             io::copy(&mut output_file, &mut io::stdout())?;
         }

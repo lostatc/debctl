@@ -7,7 +7,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub enum SourceFilePath {
     /// A source file installed in the APT sources directory.
-    Installed { name: String },
+    Installed { dir: PathBuf, name: String },
 
     /// A source file at an arbitrary file path.
     File { path: PathBuf },
@@ -31,21 +31,21 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
-    const SOURCES_DIR: &str = "/etc/apt/sources.list.d";
+    /// The file extension of the source file.
+    fn extension(&self) -> &'static str {
+        match self.kind {
+            SourceFileKind::OneLine => "list",
+            SourceFileKind::Deb822 => "sources",
+        }
+    }
 
     /// The path of this source file.
     pub fn path(&self) -> Cow<'_, Path> {
-        let extension = match self.kind {
-            SourceFileKind::OneLine => "list",
-            SourceFileKind::Deb822 => "sources",
-        };
-
         match &self.path {
-            SourceFilePath::Installed { name } => Cow::Owned(
-                [Self::SOURCES_DIR, &format!("{}.{}", name, extension)]
-                    .iter()
-                    .collect(),
-            ),
+            SourceFilePath::Installed {
+                dir: directory,
+                name,
+            } => Cow::Owned(directory.join(format!("{}.{}", name, self.extension()))),
             SourceFilePath::File { path } => Cow::Borrowed(path),
         }
     }

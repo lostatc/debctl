@@ -4,7 +4,7 @@ use clap::{Args, Parser, Subcommand};
 
 use crate::types::SourceType;
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 #[command(author, version, about)]
 pub struct Cli {
     /// Don't do anything; just show what would have happened
@@ -17,11 +17,15 @@ pub struct Cli {
     #[arg(long, value_name = "PATH", default_value = "gpg")]
     pub gpg_path: String,
 
+    /// The path of the APT sources directory.
+    #[arg(long, value_name = "PATH", default_value = "/etc/apt/sources.list.d/")]
+    pub sources_dir: PathBuf,
+
     #[command(subcommand)]
     pub command: Commands,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 #[group(required = true, multiple = false)]
 pub struct KeySourceArgs {
     /// The public signing key for the repo
@@ -41,7 +45,7 @@ pub struct KeySourceArgs {
     pub force_no_key: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 #[group(required = false, multiple = false)]
 pub struct KeyDestinationArgs {
     /// The path to install the repository signing key to
@@ -56,7 +60,7 @@ pub struct KeyDestinationArgs {
     pub inline_key: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct SigningKeyArgs {
     #[command(flatten)]
     pub location: KeySourceArgs,
@@ -71,21 +75,21 @@ pub struct SigningKeyArgs {
     pub destination: KeyDestinationArgs,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct DescriptionArgs {
     /// A human-readable name for the source entry
     #[arg(short, long)]
     pub description: Option<String>,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct DisabledArgs {
     /// Mark this source entry as disabled
     #[arg(long)]
     pub disabled: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 #[group(required = false, multiple = false)]
 pub struct OverwriteArgs {
     /// Overwrite the source file if it already exists.
@@ -97,7 +101,7 @@ pub struct OverwriteArgs {
     pub append: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct New {
     /// The name of the source file
     ///
@@ -165,7 +169,7 @@ pub struct New {
     pub overwrite: OverwriteArgs,
 }
 
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct Add {
     /// The one-line-style source entry
     pub line: String,
@@ -189,14 +193,7 @@ pub struct Add {
     pub overwrite: OverwriteArgs,
 }
 
-#[derive(Args)]
-pub struct ConvertDestArgs {}
-
-#[derive(Args)]
-#[group(required = false, multiple = false)]
-pub struct BackupArgs {}
-
-#[derive(Args)]
+#[derive(Args, Clone)]
 pub struct Convert {
     /// The name of the source file
     ///
@@ -257,7 +254,7 @@ pub struct Convert {
     pub skip_disabled: bool,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum Commands {
     /// Add a new source entry by specifying its parameters
     New(New),

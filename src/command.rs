@@ -1,10 +1,20 @@
 use std::fmt::Write;
+use std::path::PathBuf;
 
 use crate::cli;
 use crate::convert::EntryConverter;
 use crate::entry::{OverwriteAction, SourceEntry};
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::key::KeyDestination;
+
+/// High-level configuration for the program.
+pub struct Config {
+    /// The path of the GnuPG binary.
+    pub gpg_path: String,
+
+    /// The path of the APT sources directory.
+    pub sources_dir: PathBuf,
+}
 
 /// A CLI command.
 pub trait Command {
@@ -23,7 +33,7 @@ pub struct NewCommand {
 }
 
 impl NewCommand {
-    pub fn new(args: cli::New) -> eyre::Result<Self> {
+    pub fn new(args: cli::New, conf: Config) -> eyre::Result<Self> {
         Ok(Self {
             action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
@@ -31,6 +41,7 @@ impl NewCommand {
             source_file: SourceFile {
                 path: SourceFilePath::Installed {
                     name: args.name.clone(),
+                    dir: conf.sources_dir,
                 },
                 kind: SourceFileKind::Deb822,
             },
@@ -71,7 +82,7 @@ pub struct AddCommand {
 }
 
 impl AddCommand {
-    pub fn new(args: cli::Add) -> eyre::Result<Self> {
+    pub fn new(args: cli::Add, conf: Config) -> eyre::Result<Self> {
         Ok(Self {
             action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
@@ -79,6 +90,7 @@ impl AddCommand {
             source_file: SourceFile {
                 path: SourceFilePath::Installed {
                     name: args.name.clone(),
+                    dir: conf.sources_dir,
                 },
                 kind: SourceFileKind::Deb822,
             },
@@ -116,9 +128,9 @@ pub struct ConvertCommand {
 }
 
 impl ConvertCommand {
-    pub fn new(args: cli::Convert) -> eyre::Result<Self> {
+    pub fn new(args: cli::Convert, conf: Config) -> eyre::Result<Self> {
         Ok(Self {
-            converter: EntryConverter::from_args(&args)?,
+            converter: EntryConverter::from_args(&args, conf.sources_dir)?,
         })
     }
 }
@@ -139,12 +151,21 @@ impl Command for ConvertCommand {
     }
 }
 
-impl cli::Commands {
-    pub fn dispatch(self) -> eyre::Result<Box<dyn Command>> {
-        match self {
-            cli::Commands::New(args) => Ok(Box::new(NewCommand::new(args)?)),
-            cli::Commands::Add(args) => Ok(Box::new(AddCommand::new(args)?)),
-            cli::Commands::Convert(args) => Ok(Box::new(ConvertCommand::new(args)?)),
+impl cli::Cli {
+    fn config(&self) -> Config {
+        Config {
+            gpg_path: self.gpg_path.clone(),
+            sources_dir: self.sources_dir.clone(),
+        }
+    }
+
+    pub fn dispatch(&self) -> eyre::Result<Box<dyn Command>> {
+        let conf = self.config();
+
+        match &self.command {
+            cli::Commands::New(args) => Ok(Box::new(NewCommand::new(args.clone(), conf)?)),
+            cli::Commands::Add(args) => Ok(Box::new(AddCommand::new(args.clone(), conf)?)),
+            cli::Commands::Convert(args) => Ok(Box::new(ConvertCommand::new(args.clone(), conf)?)),
         }
     }
 }

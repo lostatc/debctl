@@ -26,7 +26,7 @@ fn run() -> eyre::Result<()> {
 
     set_gpg_path(&cli.gpg_path);
 
-    let mut command = cli.command.dispatch()?;
+    let mut command = cli.dispatch()?;
 
     if !cli.dry_run {
         command.run()?;
