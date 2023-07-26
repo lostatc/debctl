@@ -97,4 +97,6 @@ debctl convert --name docker
 ```
 
 This replaces `/etc/apt/sources.list.d/docker.list` with
-`/etc/apt/sources.list.d/docker.sources`.
+`/etc/apt/sources.list.d/docker.sources`. Entries that are commented out in the
+`.list` file are included in the `.sources` file, but with the `Enabled: no`
+option set.
