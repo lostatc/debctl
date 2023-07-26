@@ -44,10 +44,10 @@ repository](https://docs.docker.com/engine/install/ubuntu/) to your system:
 
 ```shell
 debctl new \
+    --name docker \
     --uri https://download.docker.com/linux/ubuntu \
     --key https://download.docker.com/linux/ubuntu/gpg \
-    --component stable \
-    docker
+    --component stable
 ```
 
 This downloads the signing key for the repository, installs it under

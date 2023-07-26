@@ -102,10 +102,11 @@ pub struct New {
     /// The name of the source file
     ///
     /// The source file is generated in /etc/apt/sources.list.d/ with this as its basename.
+    #[arg(short, long)]
     pub name: String,
 
     /// The URIs of the repository
-    #[arg(long, required = true)]
+    #[arg(short, long, required = true)]
     pub uri: Vec<String>,
 
     #[command(flatten)]
