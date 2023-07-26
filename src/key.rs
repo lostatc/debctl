@@ -8,7 +8,7 @@ use reqwest::Url;
 use crate::cli::KeyDestinationArgs;
 use crate::error::Error;
 use crate::option::OptionValue;
-use crate::pgp::{Key, KeyEncoding, KeyId, Keyring};
+use crate::pgp::{GnupgClient, Key, KeyEncoding, KeyId};
 
 /// The location to install a signing key to.
 #[derive(Debug)]
@@ -83,16 +83,16 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
 
 impl KeySource {
     /// Get signing key at this location.
-    fn get_key(&self) -> eyre::Result<Key> {
+    fn get_key(&self, client: &GnupgClient) -> eyre::Result<Key> {
         match self {
-            Self::Download { url } => {
-                Ok(Key::from_url(url).wrap_err("failed downloading signing key")?)
-            }
-            Self::File { path } => {
-                Ok(Key::from_file(path).wrap_err("failed getting signing key from file")?)
-            }
+            Self::Download { url } => Ok(client
+                .from_url(url)
+                .wrap_err("failed downloading signing key")?),
+            Self::File { path } => Ok(client
+                .from_file(path)
+                .wrap_err("failed getting signing key from file")?),
             Self::Keyserver { id, keyserver } => {
-                let mut keyring = Keyring::new().wrap_err("failed creating keyring")?;
+                let mut keyring = client.new_keyring().wrap_err("failed creating keyring")?;
 
                 let keyring_key = keyring
                     .recv_key(keyserver, KeyId::new(id.to_string()))
@@ -106,8 +106,10 @@ impl KeySource {
     }
 
     /// Install the signing key at this location to `dest`.
-    pub fn install(&self, dest: &Path) -> eyre::Result<()> {
-        let key = self.get_key().wrap_err("failed getting signing key")?;
+    pub fn install(&self, client: &GnupgClient, dest: &Path) -> eyre::Result<()> {
+        let key = self
+            .get_key(client)
+            .wrap_err("failed getting signing key")?;
 
         let dearmored_key = key.dearmor().wrap_err("failed dearmoring signing key")?;
 
@@ -120,8 +122,10 @@ impl KeySource {
     }
 
     /// Get the key at this location as an option value.
-    pub fn to_value(&self) -> eyre::Result<OptionValue> {
-        let key = self.get_key().wrap_err("failed getting signing key")?;
+    pub fn to_value(&self, client: &GnupgClient) -> eyre::Result<OptionValue> {
+        let key = self
+            .get_key(client)
+            .wrap_err("failed getting signing key")?;
 
         let armored_key = key.enarmor().wrap_err("failed armoring signing key")?;
 

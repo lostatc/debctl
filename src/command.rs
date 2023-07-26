@@ -6,6 +6,7 @@ use crate::convert::EntryConverter;
 use crate::entry::{OverwriteAction, SourceEntry};
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::key::KeyDestination;
+use crate::pgp::GnupgClient;
 
 /// High-level configuration for the program.
 pub struct Config {
@@ -14,6 +15,13 @@ pub struct Config {
 
     /// The path of the APT sources directory.
     pub sources_dir: PathBuf,
+}
+
+impl Config {
+    /// Create a new PGP client.
+    pub fn pgp_client(&self) -> GnupgClient {
+        GnupgClient::new(&self.gpg_path)
+    }
 }
 
 /// A CLI command.
@@ -26,6 +34,7 @@ pub trait Command {
 }
 
 pub struct NewCommand {
+    client: GnupgClient,
     action: OverwriteAction,
     key_dest: KeyDestination,
     entry: SourceEntry,
@@ -35,6 +44,7 @@ pub struct NewCommand {
 impl NewCommand {
     pub fn new(args: cli::New, conf: Config) -> eyre::Result<Self> {
         Ok(Self {
+            client: conf.pgp_client(),
             action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
             entry: SourceEntry::from_new_args(&args)?,
@@ -51,7 +61,7 @@ impl NewCommand {
 
 impl Command for NewCommand {
     fn run(&mut self) -> eyre::Result<()> {
-        self.entry.install_key(&self.key_dest)?;
+        self.entry.install_key(&self.client, &self.key_dest)?;
         self.entry.install(&self.source_file, self.action)?;
 
         Ok(())
@@ -75,6 +85,7 @@ impl Command for NewCommand {
 }
 
 pub struct AddCommand {
+    client: GnupgClient,
     action: OverwriteAction,
     key_dest: KeyDestination,
     entry: SourceEntry,
@@ -84,6 +95,7 @@ pub struct AddCommand {
 impl AddCommand {
     pub fn new(args: cli::Add, conf: Config) -> eyre::Result<Self> {
         Ok(Self {
+            client: conf.pgp_client(),
             action: args.overwrite.action(),
             key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
             entry: SourceEntry::from_add_args(&args)?,
@@ -100,7 +112,7 @@ impl AddCommand {
 
 impl Command for AddCommand {
     fn run(&mut self) -> eyre::Result<()> {
-        self.entry.install_key(&self.key_dest)?;
+        self.entry.install_key(&self.client, &self.key_dest)?;
         self.entry.install(&self.source_file, self.action)?;
 
         Ok(())

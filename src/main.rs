@@ -19,12 +19,9 @@ use std::process::ExitCode;
 use clap::Parser;
 use cli::Cli;
 use error::Error;
-use pgp::set_gpg_path;
 
 fn run() -> eyre::Result<()> {
     let cli = Cli::parse();
-
-    set_gpg_path(&cli.gpg_path);
 
     let mut command = cli.dispatch()?;
 

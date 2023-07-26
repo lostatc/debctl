@@ -13,6 +13,7 @@ use crate::file::SourceFile;
 use crate::key::{KeyDestination, KeySource, SigningKey};
 use crate::option::{KnownOptionName, OptionMap};
 use crate::parse::{parse_custom_option, parse_line_entry};
+use crate::pgp::GnupgClient;
 
 /// What to do if a repo source file already exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -212,19 +213,19 @@ impl SourceEntry {
     }
 
     /// Install the key for this source entry.
-    pub fn install_key(&mut self, dest: &KeyDestination) -> eyre::Result<()> {
+    pub fn install_key(&mut self, client: &GnupgClient, dest: &KeyDestination) -> eyre::Result<()> {
         if let Some(key_location) = &self.key {
             let key = match dest {
                 KeyDestination::File { path } => {
                     key_location
-                        .install(path)
+                        .install(client, path)
                         .wrap_err("failed installing signing key to file")?;
 
                     SigningKey::File { path: path.clone() }
                 }
                 KeyDestination::Inline => SigningKey::Inline {
                     value: key_location
-                        .to_value()
+                        .to_value(client)
                         .wrap_err("failed installing inline signing key")?,
                 },
             };

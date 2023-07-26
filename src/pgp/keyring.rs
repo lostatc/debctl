@@ -6,8 +6,8 @@ use tempfile::NamedTempFile;
 use crate::error::Error;
 use crate::stdio::{read_stderr, read_stdout, wait, write_stdin};
 
-use super::command::{gpg_command, map_gpg_err};
 use super::key::{Key, KeyEncoding, KeyId};
+use super::GnupgClient;
 
 /// A PGP key in a keyring.
 #[derive(Debug)]
@@ -15,23 +15,29 @@ pub struct KeyringKey {
     id: KeyId,
 }
 
+impl GnupgClient {
+    /// Create a new empty keyring.
+    pub fn new_keyring(&self) -> eyre::Result<Keyring> {
+        Ok(Keyring {
+            client: self.to_owned(),
+            file: NamedTempFile::new().wrap_err("failed to create temporary keyring file")?,
+        })
+    }
+}
+
 /// A PGP keyring.
 #[derive(Debug)]
 pub struct Keyring {
+    client: GnupgClient,
     file: NamedTempFile,
 }
 
 impl Keyring {
-    /// Create a new empty keyring.
-    pub fn new() -> eyre::Result<Self> {
-        Ok(Self {
-            file: NamedTempFile::new().wrap_err("failed to create temporary keyring file")?,
-        })
-    }
-
     /// Import a key into this keyring from a keyserver.
     pub fn recv_key(&mut self, keyserver: &str, id: KeyId) -> eyre::Result<KeyringKey> {
-        let output = gpg_command()
+        let output = self
+            .client
+            .command()
             .arg("--no-default-keyring")
             .arg("--keyring")
             .arg(self.file.path().as_os_str())
@@ -40,7 +46,7 @@ impl Keyring {
             .arg("--recv-keys")
             .arg(id.as_ref())
             .output()
-            .map_err(map_gpg_err)?;
+            .map_err(|err| self.client.map_err(err))?;
 
         if !output.status.success() {
             bail!(Error::KeyserverFetchFailed {
@@ -55,7 +61,9 @@ impl Keyring {
 
     /// Import a key into this keyring.
     pub fn import(&mut self, key: &mut Key) -> eyre::Result<KeyringKey> {
-        let mut process = gpg_command()
+        let mut process = self
+            .client
+            .command()
             .arg("--no-default-keyring")
             .arg("--keyring")
             .arg(self.file.path().as_os_str())
@@ -64,7 +72,7 @@ impl Keyring {
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(map_gpg_err)?;
+            .map_err(|err| self.client.map_err(err))?;
 
         let stderr_handle = read_stderr(&mut process);
 
@@ -77,7 +85,9 @@ impl Keyring {
 
     /// Export a key from this keyring.
     pub fn export(&mut self, key: KeyringKey, encoding: KeyEncoding) -> eyre::Result<Key> {
-        let mut process = gpg_command()
+        let mut process = self
+            .client
+            .command()
             .arg("--no-default-keyring")
             .arg("--keyring")
             .arg(self.file.path().as_os_str())
@@ -90,7 +100,7 @@ impl Keyring {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(map_gpg_err)?;
+            .map_err(|err| self.client.map_err(err))?;
 
         let stdout_handle = read_stdout(&mut process);
         let stderr_handle = read_stderr(&mut process);
@@ -99,6 +109,6 @@ impl Keyring {
 
         let key_bytes = stdout_handle.join()?;
 
-        Ok(Key::new(key_bytes, encoding, Some(key.id)))
+        Ok(self.client.new_key(key_bytes, encoding, Some(key.id)))
     }
 }
