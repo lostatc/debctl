@@ -269,7 +269,7 @@ impl OptionValue {
 pub type OptionPair = (OptionName, OptionValue);
 
 /// A map of option names and their values.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptionMap(HashMap<OptionName, OptionValue>);
 
 impl OptionMap {

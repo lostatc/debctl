@@ -111,7 +111,7 @@ pub fn parse_line_entry(entry: &str) -> eyre::Result<OptionMap> {
 }
 
 /// A line in a one-line-style source file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConvertedLineEntry {
     Entry(OptionMap),
     Comment(String),
@@ -131,7 +131,6 @@ pub struct ParseLineFileOptions {
 ///
 /// Comments are preserved unless `skip_comments` is true. Entries that are commented out are
 /// converted to disabled entries in the output unless `skip_disabled` is true.
-///
 pub fn parse_line_file(
     mut file: impl Read,
     options: &ParseLineFileOptions,
@@ -202,10 +201,13 @@ mod tests {
     use crate::types::SourceType;
 
     use super::*;
-    use xpct::{consist_of, expect, pattern};
+    use xpct::{
+        be_some, consist_of, contain_element, equal, every, expect, have_len, match_pattern,
+        pattern,
+    };
 
     #[test]
-    fn correctly_parses_valid_line_entry() -> eyre::Result<()> {
+    fn parses_valid_line_entry() -> eyre::Result<()> {
         let entry = "deb [arch=amd64 lang=en,de] https://example.com suite component1 component2";
 
         let options = parse_line_entry(entry)?;
@@ -236,41 +238,196 @@ mod tests {
     }
 
     #[test]
-    fn parse_fails_on_unrecognized_option_name() -> eyre::Result<()> {
+    fn parse_fails_on_unrecognized_option_name() {
         let entry = "deb [unrecognized=foo] https://example.com suite component1 component2";
 
         expect!(parse_line_entry(entry))
             .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_fails_when_not_enough_segments() -> eyre::Result<()> {
+    fn parse_fails_when_not_enough_segments() {
         let entry = "deb https://example.com suite";
 
         expect!(parse_line_entry(entry))
             .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_fails_when_options_list_not_closed() -> eyre::Result<()> {
+    fn parse_fails_when_options_list_not_closed() {
         let entry = "deb [arch=amd64 https://example.com suite";
 
         expect!(parse_line_entry(entry))
             .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+    }
+
+    #[test]
+    fn parse_fails_when_type_is_unrecognized() {
+        let entry = "invalid-type https://example.com suite component";
+
+        expect!(parse_line_entry(entry))
+            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+    }
+
+    #[test]
+    fn parses_valid_line_file() -> eyre::Result<()> {
+        let file = "\
+            deb https://example.com suite component
+            deb-src https://example.com suite component
+        ";
+
+        let entries = parse_line_file(
+            file.as_bytes(),
+            &ParseLineFileOptions {
+                skip_comments: false,
+                skip_disabled: false,
+            },
+        )?;
+
+        expect!(entries).to(have_len(2)).to(every(|| {
+            match_pattern(pattern!(ConvertedLineEntry::Entry(_)))
+        }));
 
         Ok(())
     }
 
     #[test]
-    fn parse_fails_when_type_is_unrecognized() -> eyre::Result<()> {
-        let entry = "invalid-type https://example.com suite component";
+    fn parses_comments_in_line_file() -> eyre::Result<()> {
+        let file = "\
+            # comment
+            deb https://example.com suite component
+        ";
 
-        expect!(parse_line_entry(entry))
-            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+        let mut entries = parse_line_file(
+            file.as_bytes(),
+            &ParseLineFileOptions {
+                skip_comments: false,
+                skip_disabled: false,
+            },
+        )?;
+
+        entries = expect!(entries).to(have_len(2)).into_inner();
+
+        expect!(entries.get(0))
+            .to(be_some())
+            .to(equal(&ConvertedLineEntry::Comment("comment".into())));
+
+        expect!(entries.get(1))
+            .to(be_some())
+            .map(ToOwned::to_owned)
+            .to(match_pattern(pattern!(ConvertedLineEntry::Entry(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn skips_comments_in_line_file() -> eyre::Result<()> {
+        let file = "\
+            # comment
+            # deb https://example.com suite component
+            deb https://example.com suite component
+        ";
+
+        let entries = parse_line_file(
+            file.as_bytes(),
+            &ParseLineFileOptions {
+                skip_comments: true,
+                skip_disabled: false,
+            },
+        )?;
+
+        expect!(entries).to(have_len(2)).to(every(|| {
+            match_pattern(pattern!(ConvertedLineEntry::Entry(_)))
+        }));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_disabled_entries_in_line_file() -> eyre::Result<()> {
+        let file = "\
+            # deb https://example.com suite component
+            deb https://example.com suite component
+        ";
+
+        let mut entries = parse_line_file(
+            file.as_bytes(),
+            &ParseLineFileOptions {
+                skip_comments: false,
+                skip_disabled: false,
+            },
+        )?;
+
+        entries = expect!(entries)
+            .to(have_len(2))
+            .to(every(|| {
+                match_pattern(pattern!(ConvertedLineEntry::Entry(_)))
+            }))
+            .into_inner();
+
+        expect!(entries.get(0))
+            .to(be_some())
+            .map(|entry| match entry {
+                ConvertedLineEntry::Entry(options) => options.options(),
+                ConvertedLineEntry::Comment(_) => unreachable!(),
+            })
+            .to(contain_element((
+                &KnownOptionName::Enabled.into(),
+                &false.into(),
+            )));
+
+        Ok(())
+    }
+
+    #[test]
+    fn skips_disabled_entries_in_line_file() -> eyre::Result<()> {
+        let file = "\
+            # comment
+            # deb https://example.com suite component
+            deb https://example.com suite component
+        ";
+
+        let mut entries = parse_line_file(
+            file.as_bytes(),
+            &ParseLineFileOptions {
+                skip_comments: false,
+                skip_disabled: true,
+            },
+        )?;
+
+        entries = expect!(entries).to(have_len(2)).into_inner();
+
+        expect!(entries.get(0))
+            .to(be_some())
+            .to(equal(&ConvertedLineEntry::Comment("comment".into())));
+
+        expect!(entries.get(1))
+            .to(be_some())
+            .map(ToOwned::to_owned)
+            .to(match_pattern(pattern!(ConvertedLineEntry::Entry(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parser_ignores_blank_lines_in_line_file() -> eyre::Result<()> {
+        let file = "
+
+            deb https://example.com suite component
+
+            deb-src https://example.com suite component
+
+        ";
+
+        let entries = parse_line_file(
+            file.as_bytes(),
+            &ParseLineFileOptions {
+                skip_comments: false,
+                skip_disabled: false,
+            },
+        )?;
+
+        expect!(entries).to(have_len(2));
 
         Ok(())
     }
