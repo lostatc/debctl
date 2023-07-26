@@ -350,7 +350,7 @@ impl EntryConverter {
             Err(err) => bail!(err.wrap_err("failed opening `.sources` destination file")),
         };
 
-        for line_entry in &self.entries {
+        for (entry_index, line_entry) in self.entries.iter().enumerate() {
             match line_entry {
                 ConvertedLineEntry::Entry(options) => {
                     let entry = SourceEntry::new(options.clone(), None);
@@ -360,8 +360,11 @@ impl EntryConverter {
                         .wrap_err("failed installing converted `.sources` source file")?;
 
                     // Adding a newline after stanzas ensures there's a blank line between the end
-                    // of the stanza and any adjacent comments.
-                    writeln!(&mut output_file)?;
+                    // of the stanza and any adjacent comments. But don't add a trailing newline at
+                    // the end of the file.
+                    if entry_index < self.entries.len() - 1 {
+                        writeln!(&mut output_file)?;
+                    }
                 }
                 ConvertedLineEntry::Comment(comment) => {
                     writeln!(&mut output_file, "# {}", comment)?;
