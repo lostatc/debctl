@@ -470,9 +470,7 @@ mod tests {
     }
 
     #[rstest]
-    fn new_file_is_created_in_sources_dir(
-        by_name: eyre::Result<ConverterParams>,
-    ) -> eyre::Result<()> {
+    fn new_file_is_created_by_name(by_name: eyre::Result<ConverterParams>) -> eyre::Result<()> {
         let params = by_name?;
 
         params.convert()?;
@@ -483,9 +481,7 @@ mod tests {
     }
 
     #[rstest]
-    fn new_file_is_created_outside_sources_dir(
-        by_path: eyre::Result<ConverterParams>,
-    ) -> eyre::Result<()> {
+    fn new_file_is_created_by_path(by_path: eyre::Result<ConverterParams>) -> eyre::Result<()> {
         let params = by_path?;
 
         params.convert()?;
@@ -496,7 +492,7 @@ mod tests {
     }
 
     #[rstest]
-    fn original_file_is_deleted_in_sources_dir(
+    fn original_file_is_deleted_by_name(
         by_name: eyre::Result<ConverterParams>,
     ) -> eyre::Result<()> {
         let params = by_name?;
@@ -509,7 +505,7 @@ mod tests {
     }
 
     #[rstest]
-    fn original_file_is_not_deleted_outside_sources_dir(
+    fn original_file_is_not_deleted_by_path(
         by_path: eyre::Result<ConverterParams>,
     ) -> eyre::Result<()> {
         let params = by_path?;
