@@ -167,15 +167,15 @@ impl SourceEntry {
             .map(|option| parse_custom_option(option, args.force_literal_options))
             .collect::<Result<OptionMap, _>>()?;
 
-        options.insert(KnownOptionName::Uris, args.uri.clone());
+        options.insert(KnownOptionName::Uris, &args.uri);
 
-        options.insert(KnownOptionName::Types, args.kind.clone());
+        options.insert(KnownOptionName::Types, &args.kind);
 
-        options.insert(KnownOptionName::Components, args.component.clone());
+        options.insert(KnownOptionName::Components, &args.component);
 
-        options.insert(KnownOptionName::Architectures, args.arch.clone());
+        options.insert(KnownOptionName::Architectures, &args.arch);
 
-        options.insert(KnownOptionName::Languages, args.lang.clone());
+        options.insert(KnownOptionName::Languages, &args.lang);
 
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
@@ -186,7 +186,7 @@ impl SourceEntry {
         )?;
 
         if let Some(description) = &args.description.description {
-            options.insert(KnownOptionName::RepolibName, description.clone());
+            options.insert(KnownOptionName::RepolibName, description);
         }
 
         Ok(Self {
@@ -203,7 +203,7 @@ impl SourceEntry {
         options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
 
         if let Some(description) = &args.description.description {
-            options.insert(KnownOptionName::RepolibName, description.clone());
+            options.insert(KnownOptionName::RepolibName, description);
         }
 
         Ok(Self {

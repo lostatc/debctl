@@ -163,21 +163,33 @@ pub enum OptionValue {
     Multiline(Vec<String>),
 }
 
-impl From<String> for OptionValue {
-    fn from(value: String) -> Self {
+impl From<Cow<'_, str>> for OptionValue {
+    fn from(value: Cow<'_, str>) -> Self {
         if is_truthy(&value) {
             Self::Bool(true)
         } else if is_falsey(&value) {
             Self::Bool(false)
         } else {
-            Self::String(value)
+            Self::String(value.into_owned())
         }
+    }
+}
+
+impl From<String> for OptionValue {
+    fn from(value: String) -> Self {
+        Self::from(Cow::Owned(value))
+    }
+}
+
+impl From<&String> for OptionValue {
+    fn from(value: &String) -> Self {
+        Self::from(Cow::Borrowed(value.as_str()))
     }
 }
 
 impl From<&str> for OptionValue {
     fn from(value: &str) -> Self {
-        value.to_string().into()
+        Self::from(Cow::Borrowed(value))
     }
 }
 
@@ -200,6 +212,12 @@ impl From<Vec<String>> for OptionValue {
     }
 }
 
+impl From<&Vec<String>> for OptionValue {
+    fn from(value: &Vec<String>) -> Self {
+        value.to_owned().into()
+    }
+}
+
 impl From<Vec<SourceType>> for OptionValue {
     fn from(value: Vec<SourceType>) -> Self {
         value
@@ -207,6 +225,12 @@ impl From<Vec<SourceType>> for OptionValue {
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .into()
+    }
+}
+
+impl From<&Vec<SourceType>> for OptionValue {
+    fn from(value: &Vec<SourceType>) -> Self {
+        value.to_owned().into()
     }
 }
 
