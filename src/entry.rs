@@ -316,3 +316,171 @@ impl SourceEntry {
         self.install_to(&mut file, action)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rstest::*;
+    use xpct::{be_err, be_existing_file, be_ok, equal, expect};
+
+    use crate::cli;
+    use crate::error::Error;
+    use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
+    use crate::types::SourceType;
+
+    use super::*;
+
+    struct EntryParams {
+        args: cli::New,
+    }
+
+    impl EntryParams {
+        pub fn install(&self, file: &SourceFile, action: OverwriteAction) -> eyre::Result<()> {
+            SourceEntry::from_new_args(&self.args)?.install(file, action)
+        }
+    }
+
+    #[fixture]
+    fn entry() -> EntryParams {
+        EntryParams {
+            args: cli::New {
+                name: "myrepo".into(),
+                uri: vec!["https://example.com".into()],
+                description: cli::DescriptionArgs { description: None },
+                suite: vec!["suite".into()],
+                component: vec!["component".into()],
+                kind: vec![SourceType::Deb],
+                key: cli::SigningKeyArgs {
+                    location: cli::KeySourceArgs {
+                        key: None,
+                        force_no_key: true,
+                    },
+                    keyserver: None,
+                    destination: cli::KeyDestinationArgs {
+                        key_path: None,
+                        inline_key: false,
+                    },
+                },
+                arch: Vec::new(),
+                lang: Vec::new(),
+                option: Vec::new(),
+                force_literal_options: false,
+                disabled: cli::DisabledArgs { disabled: false },
+                overwrite: cli::OverwriteArgs {
+                    overwrite: false,
+                    append: false,
+                },
+            },
+        }
+    }
+
+    #[rstest]
+    fn installing_fails_when_output_file_already_exists(entry: EntryParams) -> eyre::Result<()> {
+        let temp_file = tempfile::NamedTempFile::new()?;
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: temp_file.path().to_owned(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Fail))
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::NewSourceFileAlreadyExists {
+                path: temp_file.path().to_owned(),
+            }));
+
+        expect!(temp_file.path()).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn overwriting_succeeds_when_output_file_already_exists(
+        entry: EntryParams,
+    ) -> eyre::Result<()> {
+        let temp_file = tempfile::NamedTempFile::new()?;
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: temp_file.path().to_owned(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Overwrite)).to(be_ok());
+        expect!(temp_file.path()).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn appending_succeeds_when_output_file_already_exists(entry: EntryParams) -> eyre::Result<()> {
+        let temp_file = tempfile::NamedTempFile::new()?;
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: temp_file.path().to_owned(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Append)).to(be_ok());
+        expect!(temp_file.path()).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn installing_creates_output_file(entry: EntryParams) -> eyre::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let dest_path = temp_dir.path().join("myrepo.sources").to_owned();
+
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: dest_path.clone(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Fail)).to(be_ok());
+        expect!(&dest_path).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn overwriting_creates_output_file(entry: EntryParams) -> eyre::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let dest_path = temp_dir.path().join("myrepo.sources").to_owned();
+
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: dest_path.clone(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Overwrite)).to(be_ok());
+        expect!(&dest_path).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn appending_creates_output_file(entry: EntryParams) -> eyre::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let dest_path = temp_dir.path().join("myrepo.sources").to_owned();
+
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: dest_path.clone(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Append)).to(be_ok());
+        expect!(&dest_path).to(be_existing_file());
+
+        Ok(())
+    }
+}
