@@ -23,7 +23,7 @@ where
         match actual {
             Ok(_) => Ok(false),
             Err(err) => match ActualErr::as_ref(err).downcast_ref::<ExpectedErr>() {
-                Some(err) if self.pattern.matches(err) => Ok(true),
+                Some(downcast_err) if self.pattern.matches(downcast_err) => Ok(true),
                 _ => Ok(false),
             },
         }

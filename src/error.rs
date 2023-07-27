@@ -6,7 +6,7 @@ use thiserror::Error;
 ///
 /// This type represents errors expected in common usage of the program that should trigger a
 /// readable error message instead of a stack trace.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum Error {
     #[error("This is not a valid option name: `{name}`.\n\nSee the sources.list(5) man page for a list of valid options or use `--force-literal-options`.")]
     InvalidOptionName { name: String },

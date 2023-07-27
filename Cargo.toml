@@ -26,4 +26,5 @@ strum = "0.25.0"
 strum_macros = "0.25.1"
 
 [dev-dependencies]
+rstest = "0.18.1"
 xpct = "0.3.1"

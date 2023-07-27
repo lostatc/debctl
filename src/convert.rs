@@ -155,7 +155,7 @@ impl Convert {
 }
 
 impl EntryConverter {
-    const BAKCKUP_EXT: &str = "bak";
+    pub const BACKUP_SUFFIX: &str = ".bak";
 
     /// Construct an instance from CLI args.
     pub fn from_args(args: &Convert, sources_dir: PathBuf) -> eyre::Result<Self> {
@@ -233,9 +233,9 @@ impl EntryConverter {
                 Some(BackupMode::Backup) => Some(BackupPlan {
                     original: source_file.path().into_owned(),
                     backup: PathBuf::from(format!(
-                        "{}.{}",
+                        "{}{}",
                         source_file.path().as_os_str().to_string_lossy(),
-                        Self::BAKCKUP_EXT,
+                        Self::BACKUP_SUFFIX,
                     )),
                 }),
                 Some(BackupMode::BackupTo { path }) => Some(BackupPlan {
@@ -342,7 +342,7 @@ impl EntryConverter {
         let mut output_file = match self.open_dest_file() {
             Ok(Some(file)) => file,
             Ok(None) => tempfile::tempfile()?,
-            Err(err) => bail!(err.wrap_err("failed opening `.sources` destination file")),
+            Err(err) => bail!(err.wrap_err("failed opening destination source file")),
         };
 
         for (entry_index, line_entry) in self.entries.iter().enumerate() {
@@ -374,6 +374,311 @@ impl EntryConverter {
 
         self.remove_original()
             .wrap_err("failed deleting original `.list` source file")?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use rstest::*;
+    use xpct::{be_err, be_existing_file, be_ok, equal, expect};
+
+    use crate::cli;
+
+    use super::*;
+
+    const REPO_NAME: &str = "myrepo";
+
+    struct ConverterParams {
+        name: String,
+        sources_dir: tempfile::TempDir,
+        temp_dir: tempfile::TempDir,
+        source_file: PathBuf,
+        dest_file: PathBuf,
+        args: cli::Convert,
+    }
+
+    impl ConverterParams {
+        pub fn convert(&self) -> eyre::Result<()> {
+            EntryConverter::from_args(&self.args, self.sources_dir.path().to_owned())?.convert()?;
+
+            Ok(())
+        }
+    }
+
+    #[fixture]
+    fn by_name() -> eyre::Result<ConverterParams> {
+        let sources_dir = tempfile::tempdir()?;
+        let temp_dir = tempfile::tempdir()?;
+
+        let source_file = sources_dir.path().join(format!("{REPO_NAME}.list"));
+        let dest_file = sources_dir.path().join(format!("{REPO_NAME}.sources"));
+
+        File::create(&source_file)?;
+
+        let args = cli::Convert {
+            name: Some(REPO_NAME.into()),
+            in_path: None,
+            out_path: None,
+            backup: false,
+            backup_to: None,
+            skip_comments: false,
+            skip_disabled: false,
+        };
+
+        Ok(ConverterParams {
+            name: REPO_NAME.to_string(),
+            sources_dir,
+            temp_dir,
+            source_file,
+            dest_file,
+            args,
+        })
+    }
+
+    #[fixture]
+    fn by_path() -> eyre::Result<ConverterParams> {
+        let sources_dir = tempfile::tempdir()?;
+        let temp_dir = tempfile::tempdir()?;
+
+        let source_file = temp_dir.path().join(format!("{REPO_NAME}.list"));
+        let dest_file = temp_dir.path().join(format!("{REPO_NAME}.sources"));
+
+        File::create(&source_file)?;
+
+        let args = cli::Convert {
+            name: None,
+            in_path: Some(source_file.clone()),
+            out_path: Some(dest_file.clone()),
+            backup: false,
+            backup_to: None,
+            skip_comments: false,
+            skip_disabled: false,
+        };
+
+        Ok(ConverterParams {
+            name: REPO_NAME.to_string(),
+            sources_dir,
+            temp_dir,
+            source_file,
+            dest_file,
+            args,
+        })
+    }
+
+    #[rstest]
+    fn new_file_is_created_in_sources_dir(
+        by_name: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_name?;
+
+        params.convert()?;
+
+        expect!(params.dest_file).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn new_file_is_created_outside_sources_dir(
+        by_path: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_path?;
+
+        params.convert()?;
+
+        expect!(params.dest_file).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn original_file_is_deleted_in_sources_dir(
+        by_name: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_name?;
+
+        params.convert()?;
+
+        expect!(params.source_file).to_not(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn original_file_is_not_deleted_outside_sources_dir(
+        by_path: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_path?;
+
+        params.convert()?;
+
+        expect!(params.source_file).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn original_file_is_backed_up(by_name: eyre::Result<ConverterParams>) -> eyre::Result<()> {
+        let mut params = by_name?;
+        let backup_file = params.sources_dir.path().join(format!(
+            "{}.list{}",
+            params.name,
+            EntryConverter::BACKUP_SUFFIX
+        ));
+
+        params.args.backup = true;
+
+        params.convert()?;
+
+        expect!(backup_file).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn original_file_is_backed_up_to(by_name: eyre::Result<ConverterParams>) -> eyre::Result<()> {
+        let mut params = by_name?;
+        let backup_file = params.temp_dir.path().join("my-backup-file.list");
+
+        params.args.backup_to = Some(backup_file.clone());
+
+        params.convert()?;
+
+        expect!(backup_file).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn fails_when_input_file_does_not_exist_by_name(
+        by_name: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_name?;
+
+        fs::remove_file(&params.source_file)?;
+
+        expect!(params.convert())
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConvertInFileNotFound {
+                path: params.source_file,
+            }));
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn fails_when_input_file_does_not_exist_by_path(
+        by_path: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_path?;
+
+        fs::remove_file(&params.source_file)?;
+
+        expect!(params.convert())
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConvertInFileNotFound {
+                path: params.source_file,
+            }));
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn fails_when_output_file_already_exists_by_name(
+        by_name: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_name?;
+
+        File::create(&params.dest_file)?;
+
+        expect!(params.convert())
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConvertOutFileAlreadyExists {
+                path: params.dest_file,
+            }));
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn fails_when_output_file_already_exists_by_path(
+        by_path: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let params = by_path?;
+
+        File::create(&params.dest_file)?;
+
+        expect!(params.convert())
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConvertOutFileAlreadyExists {
+                path: params.dest_file,
+            }));
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn fails_when_backup_file_already_exists(
+        by_name: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let mut params = by_name?;
+
+        let backup_file = params.sources_dir.path().join(format!(
+            "{}.list{}",
+            params.name,
+            EntryConverter::BACKUP_SUFFIX
+        ));
+
+        File::create(&backup_file)?;
+
+        params.args.backup = true;
+
+        expect!(params.convert())
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConvertBackupAlreadyExists {
+                path: backup_file,
+            }));
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn fails_when_backup_to_file_already_exists(
+        by_name: eyre::Result<ConverterParams>,
+    ) -> eyre::Result<()> {
+        let mut params = by_name?;
+
+        let backup_file = params.temp_dir.path().join(format!(
+            "{}.list{}",
+            params.name,
+            EntryConverter::BACKUP_SUFFIX
+        ));
+
+        File::create(&backup_file)?;
+
+        params.args.backup_to = Some(backup_file.clone());
+
+        expect!(params.convert())
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConvertBackupAlreadyExists {
+                path: backup_file,
+            }));
 
         Ok(())
     }
