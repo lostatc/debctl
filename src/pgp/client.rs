@@ -92,7 +92,7 @@ impl GnupgClient {
     }
 
     /// Get a key from a file path.
-    pub fn from_file(&self, path: &Path) -> eyre::Result<Key> {
+    pub fn read_key(&self, path: &Path) -> eyre::Result<Key> {
         let mut file = File::open(path).wrap_err("failed opening local key file for reading")?;
 
         file.seek(SeekFrom::Start(0))?;
@@ -117,8 +117,8 @@ impl GnupgClient {
         Ok(self.new_key(key, encoding, None))
     }
 
-    /// Download a key from `url`.
-    pub fn from_url(&self, url: &Url) -> eyre::Result<Key> {
+    /// Download a key from a url.
+    pub fn download_key(&self, url: &Url) -> eyre::Result<Key> {
         let mut file = download_file(url).wrap_err("failed downloading PGP key")?;
 
         file.seek(SeekFrom::Start(0))?;

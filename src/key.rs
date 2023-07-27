@@ -86,10 +86,10 @@ impl KeySource {
     fn get_key(&self, client: &GnupgClient) -> eyre::Result<Key> {
         match self {
             Self::Download { url } => Ok(client
-                .from_url(url)
+                .download_key(url)
                 .wrap_err("failed downloading signing key")?),
             Self::File { path } => Ok(client
-                .from_file(path)
+                .read_key(path)
                 .wrap_err("failed getting signing key from file")?),
             Self::Keyserver { id, keyserver } => {
                 let mut keyring = client.new_keyring().wrap_err("failed creating keyring")?;
