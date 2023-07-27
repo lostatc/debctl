@@ -197,13 +197,12 @@ pub fn parse_line_file(
 #[cfg(test)]
 mod tests {
     use crate::error::Error;
-    use crate::test::match_err;
     use crate::types::SourceType;
 
     use super::*;
     use xpct::{
-        be_some, consist_of, contain_element, equal, every, expect, have_len, match_pattern,
-        pattern,
+        be_err, be_ok, be_some, consist_of, contain_element, equal, every, expect, have_len,
+        match_pattern, pattern,
     };
 
     #[test]
@@ -242,7 +241,10 @@ mod tests {
         let entry = "deb [unrecognized=foo] https://example.com suite component1 component2";
 
         expect!(parse_line_entry(entry))
-            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(match_pattern(pattern!(Error::MalformedOneLineEntry { .. })));
     }
 
     #[test]
@@ -250,7 +252,10 @@ mod tests {
         let entry = "deb https://example.com suite";
 
         expect!(parse_line_entry(entry))
-            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(match_pattern(pattern!(Error::MalformedOneLineEntry { .. })));
     }
 
     #[test]
@@ -258,7 +263,10 @@ mod tests {
         let entry = "deb [arch=amd64 https://example.com suite";
 
         expect!(parse_line_entry(entry))
-            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(match_pattern(pattern!(Error::MalformedOneLineEntry { .. })));
     }
 
     #[test]
@@ -266,7 +274,10 @@ mod tests {
         let entry = "invalid-type https://example.com suite component";
 
         expect!(parse_line_entry(entry))
-            .to(match_err(pattern!(Error::MalformedOneLineEntry { .. })));
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(match_pattern(pattern!(Error::MalformedOneLineEntry { .. })));
     }
 
     #[test]
