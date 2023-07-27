@@ -146,16 +146,12 @@ impl From<&KnownOptionName> for OptionName {
 
 /// Return whether this option value represents a true boolean value.
 fn is_truthy(s: &str) -> bool {
-    let lowercase = s.to_lowercase();
-
-    lowercase == "yes" || lowercase == "true"
+    matches!(s.to_lowercase().as_str(), "yes" | "true")
 }
 
 /// Return whether this option value represents a false boolean value.
 fn is_falsey(s: &str) -> bool {
-    let lowercase = s.to_lowercase();
-
-    lowercase == "no" || lowercase == "false"
+    matches!(s.to_lowercase().as_str(), "no" | "false")
 }
 
 /// The value of an option in a source entry.
