@@ -206,6 +206,58 @@ mod tests {
     };
 
     #[test]
+    fn parse_fails_when_custom_option_is_malformed() {
+        let option = String::from("foobar");
+
+        expect!(parse_custom_option(&option, false))
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::MalformedOption { option }));
+    }
+
+    #[test]
+    fn parse_fails_when_custom_option_is_unkown() {
+        expect!(parse_custom_option("unknown=value", false))
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::InvalidOptionName {
+                name: "unknown".into(),
+            }));
+    }
+
+    #[test]
+    fn parses_known_custom_option() {
+        expect!(parse_custom_option("arch=amd64", false))
+            .to(be_ok())
+            .to(equal((
+                KnownOptionName::Architectures.into(),
+                "amd64".into(),
+            )));
+    }
+
+    #[test]
+    fn parses_known_custom_option_with_multiple_values() {
+        expect!(parse_custom_option("arch=amd64,arm64", false))
+            .to(be_ok())
+            .to(equal((
+                KnownOptionName::Architectures.into(),
+                vec!["amd64", "arm64"].into(),
+            )));
+    }
+
+    #[test]
+    fn parses_unknown_custom_option() {
+        expect!(parse_custom_option("unknown=value", true))
+            .to(be_ok())
+            .to(equal((
+                OptionName::Custom(String::from("unknown")),
+                "value".into(),
+            )));
+    }
+
+    #[test]
     fn parses_valid_line_entry() -> eyre::Result<()> {
         let entry = "deb [arch=amd64 lang=en,de] https://example.com suite component1 component2";
 
