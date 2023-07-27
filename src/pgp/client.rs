@@ -143,3 +143,31 @@ impl GnupgClient {
         Ok(self.new_key(key, encoding, None))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use xpct::{be_err, be_ok, equal, expect};
+
+    use crate::error::Error;
+
+    use super::*;
+
+    #[test]
+    fn fails_when_gpg_path_is_nonexistent() -> eyre::Result<()> {
+        let key_file = tempfile::NamedTempFile::new()?;
+
+        let gpg_bin_path = "/nonexistent";
+
+        let client = GnupgClient::new(gpg_bin_path);
+
+        expect!(client.read_key(key_file.path()))
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::GnupgNotFound {
+                path: gpg_bin_path.into(),
+            }));
+
+        Ok(())
+    }
+}
