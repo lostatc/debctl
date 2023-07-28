@@ -2,12 +2,12 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
 use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
+use crate::codename::get_version_codename;
 use crate::error::Error;
 use crate::file::SourceFile;
 use crate::key::{KeyDestination, KeySource, SigningKey};
@@ -107,18 +107,6 @@ pub struct SourceEntry {
     key: Option<KeySource>,
 }
 
-/// Return the current distro version codename.
-fn get_current_codename() -> eyre::Result<String> {
-    let stdout = Command::new("lsb_release")
-        .arg("--short")
-        .arg("--codename")
-        .output()
-        .wrap_err("failed getting distro version codename")?
-        .stdout;
-
-    Ok(String::from_utf8(stdout)?.trim().to_string())
-}
-
 impl SigningKeyArgs {
     /// Where we're fetching the signing key from.
     pub fn key_source(&self) -> eyre::Result<Option<KeySource>> {
@@ -182,7 +170,7 @@ impl SourceEntry {
         options.insert_or_else(
             KnownOptionName::Suites,
             args.suite.to_owned(),
-            get_current_codename,
+            get_version_codename,
         )?;
 
         if let Some(description) = &args.description.description {

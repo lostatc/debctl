@@ -48,7 +48,10 @@ pub enum Error {
     ConvertOutFileAlreadyExists { path: PathBuf },
 
     #[error(
-        "There is already a backup of the source file you're trying to convert here: `{path}`\n\nRemove this file and try again."
+        "There is already a backup of the source file you're trying to convert here: `{path}`.\n\nRemove this file and try again."
     )]
     ConvertBackupAlreadyExists { path: PathBuf },
+
+    #[error("Could not figure out the version codename for your distro.\n\nYou'll need to manually pass `--suite`.")]
+    CouldNotInferSuite,
 }

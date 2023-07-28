@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod cli;
+mod codename;
 mod command;
 mod convert;
 mod entry;
