@@ -307,8 +307,10 @@ impl SourceEntry {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Read;
+
     use rstest::*;
-    use xpct::{be_err, be_existing_file, be_ok, equal, expect};
+    use xpct::{be_err, be_existing_file, be_ok, equal, expect, have_len};
 
     use crate::cli;
     use crate::error::Error;
@@ -468,6 +470,38 @@ mod tests {
 
         expect!(entry.install(&dest_file, OverwriteAction::Append)).to(be_ok());
         expect!(&dest_path).to(be_existing_file());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn stanzas_are_separated_by_exactly_one_line(entry: EntryParams) -> eyre::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let dest_path = temp_dir.path().join("myrepo.sources").to_owned();
+
+        let dest_file = SourceFile {
+            path: SourceFilePath::File {
+                path: dest_path.clone(),
+            },
+            kind: SourceFileKind::Deb822,
+        };
+
+        expect!(entry.install(&dest_file, OverwriteAction::Fail)).to(be_ok());
+        expect!(entry.install(&dest_file, OverwriteAction::Append)).to(be_ok());
+
+        let mut output_file = File::open(dest_path)?;
+
+        let mut file_contents = String::new();
+        output_file.read_to_string(&mut file_contents)?;
+
+        expect!(file_contents)
+            .map(|contents| {
+                contents
+                    .match_indices("\n\n")
+                    .map(|(index, string)| (index, string.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .to(have_len(1));
 
         Ok(())
     }
