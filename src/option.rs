@@ -382,3 +382,103 @@ impl FromIterator<(OptionName, OptionValue)> for OptionMap {
         Self(iter.into_iter().collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use xpct::{be_err, be_ok, equal, expect};
+
+    use crate::types::SourceType;
+
+    use super::*;
+
+    #[test]
+    fn bool_option_values_are_formatted_correctly() {
+        expect!(OptionValue::from(true))
+            .map(|value| value.to_deb822().into_owned())
+            .to(equal("yes"));
+
+        expect!(OptionValue::from(false))
+            .map(|value| value.to_deb822().into_owned())
+            .to(equal("no"));
+    }
+
+    #[test]
+    fn string_option_values_are_formatted_correctly() {
+        expect!(OptionValue::from("foobar"))
+            .map(|value| value.to_deb822().into_owned())
+            .to(equal("foobar"));
+    }
+
+    #[test]
+    fn list_option_values_are_formatted_correctly() {
+        expect!(OptionValue::from(vec!["value1", "value2", "value3"]))
+            .map(|value| value.to_deb822().into_owned())
+            .to(equal("value1 value2 value3"));
+    }
+
+    #[test]
+    fn multiline_option_values_are_formatted_correctly() {
+        expect!(OptionValue::Multiline(vec![
+            "value1".into(),
+            "".into(),
+            "value3".into()
+        ]))
+        .map(|value| value.to_deb822().into_owned())
+        .to(equal("\n value1\n .\n value3\n"));
+    }
+
+    #[test]
+    fn options_are_sorted_correctly() {
+        let mut map = OptionMap::new();
+
+        // Because the option map is internally backed by a hash map, and because the ordering of
+        // hash maps is nondeterministic, this test could theoretically flake, succeeding when it
+        // should fail. To reduce the statistical likelihood of this, we add a lot of options to the
+        // option map.
+
+        map.insert(OptionName::Custom("option-d".into()), "value-d");
+        map.insert(OptionName::Custom("option-b".into()), "value-b");
+        map.insert(OptionName::Custom("option-c".into()), "value-c");
+        map.insert(OptionName::Custom("option-a".into()), "value-a");
+        map.insert(KnownOptionName::Uris, vec!["https://example.com"]);
+        map.insert(KnownOptionName::Types, vec![SourceType::Deb]);
+        map.insert(KnownOptionName::Suites, vec!["jammy"]);
+        map.insert(KnownOptionName::Enabled, true);
+
+        expect!(map.options()).to(equal(vec![
+            // Known options have a canonical sort order.
+            (&KnownOptionName::Enabled.into(), &true.into()),
+            (
+                &KnownOptionName::Types.into(),
+                &vec![SourceType::Deb].into(),
+            ),
+            (
+                &KnownOptionName::Uris.into(),
+                &vec!["https://example.com"].into(),
+            ),
+            (&KnownOptionName::Suites.into(), &vec!["jammy"].into()),
+            // Custom options come after known options and are sorted by their option name.
+            (&OptionName::Custom("option-a".into()), &"value-a".into()),
+            (&OptionName::Custom("option-b".into()), &"value-b".into()),
+            (&OptionName::Custom("option-c".into()), &"value-c".into()),
+            (&OptionName::Custom("option-d".into()), &"value-d".into()),
+        ]));
+    }
+
+    #[test]
+    fn fails_on_conflicting_key_locations() {
+        let mut map = OptionMap::new();
+
+        map.insert(KnownOptionName::SignedBy, "/path/to/key.gpg");
+
+        let result = map.insert_key(SigningKey::Inline {
+            value: "encoded key bytes".into(),
+        });
+
+        expect!(result)
+            .to(be_err())
+            .map(|err| err.downcast::<Error>())
+            .to(be_ok())
+            .to(equal(Error::ConflictingKeyLocations));
+    }
+}
