@@ -27,4 +27,4 @@ strum_macros = "0.25.1"
 
 [dev-dependencies]
 rstest = "0.18.1"
-xpct = "0.3.1"
+xpct = { git = "https://github.com/lostatc/xpct.git" }
