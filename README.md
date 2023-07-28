@@ -73,7 +73,7 @@ Most documentation for third-party apt repositories directs users to use
 debctl add \
     --name docker \
     --key https://download.docker.com/linux/ubuntu/gpg \
-    'deb [arch=amd64 lang=en_US] https://download.docker.com/linux/ubuntu jammy stable'
+    'deb [arch=amd64 lang=en,de] https://download.docker.com/linux/ubuntu jammy stable'
 ```
 
 Here's the file that command generates:
@@ -86,7 +86,7 @@ Suites: jammy
 Components: stable
 Signed-By: /etc/apt/keyrings/docker-archive-keyring.gpg
 Architectures: amd64
-Languages: en_US
+Languages: en de
 ```
 
 You can also convert existing old-style `.list` files to deb822-style `.sources`
