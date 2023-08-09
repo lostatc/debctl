@@ -202,7 +202,7 @@ mod tests {
     use super::*;
     use xpct::{
         be_err, be_ok, be_some, consist_of, contain_element, equal, every, expect, have_len,
-        match_pattern, pattern,
+        match_elements, match_pattern, pattern,
     };
 
     #[test]
@@ -361,7 +361,7 @@ mod tests {
             deb https://example.com suite component
         ";
 
-        let mut entries = parse_line_file(
+        let entries = parse_line_file(
             file.as_bytes(),
             &ParseLineFileOptions {
                 skip_comments: false,
@@ -369,16 +369,10 @@ mod tests {
             },
         )?;
 
-        entries = expect!(entries).to(have_len(2)).into_inner();
-
-        expect!(entries.get(0))
-            .to(be_some())
-            .to(equal(&ConvertedLineEntry::Comment("comment".into())));
-
-        expect!(entries.get(1))
-            .to(be_some())
-            .map(ToOwned::to_owned)
-            .to(match_pattern(pattern!(ConvertedLineEntry::Entry(_))));
+        expect!(entries).to(have_len(2)).to(match_elements([
+            equal(ConvertedLineEntry::Comment("comment".into())),
+            match_pattern(pattern!(ConvertedLineEntry::Entry(_))),
+        ]));
 
         Ok(())
     }
@@ -413,7 +407,7 @@ mod tests {
             deb https://example.com suite component
         ";
 
-        let mut entries = parse_line_file(
+        let entries = parse_line_file(
             file.as_bytes(),
             &ParseLineFileOptions {
                 skip_comments: false,
@@ -421,23 +415,23 @@ mod tests {
             },
         )?;
 
-        entries = expect!(entries)
+        expect!(entries)
             .to(have_len(2))
-            .to(every(|| {
-                match_pattern(pattern!(ConvertedLineEntry::Entry(_)))
-            }))
-            .into_inner();
-
-        expect!(entries.get(0))
-            .to(be_some())
-            .map(|entry| match entry {
-                ConvertedLineEntry::Entry(options) => options.options(),
-                ConvertedLineEntry::Comment(_) => unreachable!(),
+            .iter_map(|entry| match entry {
+                ConvertedLineEntry::Entry(options) => Some(
+                    options
+                        .options()
+                        .into_iter()
+                        .map(|(name, value)| (name.to_owned(), value.to_owned()))
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
             })
-            .to(contain_element((
-                &KnownOptionName::Enabled.into(),
-                &false.into(),
-            )));
+            .to(every(be_some))
+            .to(match_elements([
+                contain_element((KnownOptionName::Enabled.into(), false.into())),
+                contain_element((KnownOptionName::Enabled.into(), true.into())),
+            ]));
 
         Ok(())
     }
@@ -450,7 +444,7 @@ mod tests {
             deb https://example.com suite component
         ";
 
-        let mut entries = parse_line_file(
+        let entries = parse_line_file(
             file.as_bytes(),
             &ParseLineFileOptions {
                 skip_comments: false,
@@ -458,16 +452,10 @@ mod tests {
             },
         )?;
 
-        entries = expect!(entries).to(have_len(2)).into_inner();
-
-        expect!(entries.get(0))
-            .to(be_some())
-            .to(equal(&ConvertedLineEntry::Comment("comment".into())));
-
-        expect!(entries.get(1))
-            .to(be_some())
-            .map(ToOwned::to_owned)
-            .to(match_pattern(pattern!(ConvertedLineEntry::Entry(_))));
+        expect!(entries).to(have_len(2)).to(match_elements([
+            equal(ConvertedLineEntry::Comment("comment".into())),
+            match_pattern(pattern!(ConvertedLineEntry::Entry(_))),
+        ]));
 
         Ok(())
     }
