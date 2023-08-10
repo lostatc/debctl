@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod args;
 mod cli;
 mod codename;
 mod command;

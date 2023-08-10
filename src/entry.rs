@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
+use crate::args::OverwriteAction;
 use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
 use crate::codename::get_version_codename;
 use crate::error::Error;
@@ -14,14 +15,6 @@ use crate::key::{KeyDestination, KeySource, SigningKey};
 use crate::option::{KnownOptionName, OptionMap};
 use crate::parse::{parse_custom_option, parse_line_entry};
 use crate::pgp::GnupgClient;
-
-/// What to do if a repo source file already exists.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OverwriteAction {
-    Overwrite,
-    Append,
-    Fail,
-}
 
 impl OverwriteArgs {
     /// What to do if a repo source file already exists.

@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 
 use eyre::{bail, eyre, WrapErr};
 
+use crate::args::OverwriteAction;
 use crate::cli::Convert;
-use crate::entry::{OverwriteAction, SourceEntry};
+use crate::entry::SourceEntry;
 use crate::error::Error;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::parse::{parse_line_file, ConvertedLineEntry, ParseLineFileOptions};

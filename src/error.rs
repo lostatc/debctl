@@ -54,4 +54,7 @@ pub enum Error {
 
     #[error("Could not figure out the version codename for your distro.\n\nYou'll need to manually pass `--suite`.")]
     CouldNotInferSuite,
+
+    #[error("This URI is malformed: `{uri}`.\n\n{reason}")]
+    MalformedUri { uri: String, reason: String },
 }

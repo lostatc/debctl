@@ -1,9 +1,10 @@
 use std::fmt::Write;
 use std::path::PathBuf;
 
+use crate::args::OverwriteAction;
 use crate::cli;
 use crate::convert::EntryConverter;
-use crate::entry::{OverwriteAction, SourceEntry};
+use crate::entry::SourceEntry;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::key::KeyDestination;
 use crate::pgp::GnupgClient;
