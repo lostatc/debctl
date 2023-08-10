@@ -15,16 +15,8 @@ format and implements modern best practices for managing signing keys.
 - `apt-key` is deprecated because it trusts signing keys for *all* apt
   repositories instead of just the ones they're meant to be signing.
 
-## Features
-
-- Add new repositories to your system in deb822 format.
-- Migrate existing files from the old `.list` format to the deb822 `.sources`
-  format.
-- Fetches signing keys from a local file path, a URL, or a keyserver and trusts
-  them for only the repository they're signing via the `Signed-By` option.
-- Keys can be installed in a keyring or inlined into the `.sources` file.
-- Generally encourages best practices, but provides escape hatches for doing
-  weird stuff.
+This tool tries to encourage best practices while providing escape hatches for
+doing weird stuff.
 
 ## Installation
 
@@ -50,11 +42,13 @@ debctl new \
     --component stable
 ```
 
-This downloads the signing key for the repository, installs it under
-`/etc/apt/keyrings/`, and creates the repository entry at
-`/etc/apt/sources.list.d/docker.sources`.
+This downloads the signing key for the repository and installs it under
+`/etc/apt/keyrings/`. It can fetch the signing key from a URL, a local file
+path, or a keyserver and install it to a keyring or inline it into the
+`.sources` file.
 
-Here's what that file looks like:
+This command creates the repository entry at
+`/etc/apt/sources.list.d/docker.sources`. Here's what that file looks like:
 
 ```
 Enabled: yes
