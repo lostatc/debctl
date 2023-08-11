@@ -1,12 +1,12 @@
 use std::fmt::Write;
 use std::path::PathBuf;
 
-use crate::args::OverwriteAction;
+use crate::args::{AddArgs, ConvertArgs, NewArgs, OverwriteAction};
 use crate::cli;
 use crate::convert::EntryConverter;
 use crate::entry::SourceEntry;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
-use crate::key::KeyDestination;
+use crate::key::KeyDest;
 use crate::pgp::GnupgClient;
 
 /// High-level configuration for the program.
@@ -37,21 +37,23 @@ pub trait Command {
 pub struct NewCommand {
     client: GnupgClient,
     action: OverwriteAction,
-    key_dest: KeyDestination,
+    key_dest: KeyDest,
     entry: SourceEntry,
     source_file: SourceFile,
 }
 
 impl NewCommand {
     pub fn new(args: cli::New, conf: Config) -> eyre::Result<Self> {
+        let new_args = NewArgs::from_cli(args)?;
+
         Ok(Self {
             client: conf.pgp_client(),
-            action: args.overwrite.action(),
-            key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
-            entry: SourceEntry::from_new_args(&args)?,
+            action: new_args.action(),
+            key_dest: new_args.key().dest.clone(),
+            entry: SourceEntry::from_new(&new_args)?,
             source_file: SourceFile {
                 path: SourceFilePath::Installed {
-                    name: args.name.clone(),
+                    name: new_args.name().to_owned(),
                     dir: conf.sources_dir,
                 },
                 kind: SourceFileKind::Deb822,
@@ -71,7 +73,7 @@ impl Command for NewCommand {
     fn report(&self) -> eyre::Result<Option<String>> {
         let mut output = String::new();
 
-        if let KeyDestination::File { path } = &self.key_dest {
+        if let KeyDest::File { path } = &self.key_dest {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
@@ -88,21 +90,23 @@ impl Command for NewCommand {
 pub struct AddCommand {
     client: GnupgClient,
     action: OverwriteAction,
-    key_dest: KeyDestination,
+    key_dest: KeyDest,
     entry: SourceEntry,
     source_file: SourceFile,
 }
 
 impl AddCommand {
     pub fn new(args: cli::Add, conf: Config) -> eyre::Result<Self> {
+        let add_args = AddArgs::from_cli(args)?;
+
         Ok(Self {
             client: conf.pgp_client(),
-            action: args.overwrite.action(),
-            key_dest: KeyDestination::from_args(&args.key.destination, &args.name),
-            entry: SourceEntry::from_add_args(&args)?,
+            action: add_args.action(),
+            key_dest: add_args.key().dest.clone(),
+            entry: SourceEntry::from_add(&add_args)?,
             source_file: SourceFile {
                 path: SourceFilePath::Installed {
-                    name: args.name.clone(),
+                    name: add_args.name().to_owned(),
                     dir: conf.sources_dir,
                 },
                 kind: SourceFileKind::Deb822,
@@ -122,7 +126,7 @@ impl Command for AddCommand {
     fn report(&self) -> eyre::Result<Option<String>> {
         let mut output = String::new();
 
-        if let KeyDestination::File { path } = &self.key_dest {
+        if let KeyDest::File { path } = &self.key_dest {
             writeln!(&mut output, "Installed signing key: {}", path.display())?;
         }
 
@@ -143,7 +147,7 @@ pub struct ConvertCommand {
 impl ConvertCommand {
     pub fn new(args: cli::Convert, conf: Config) -> eyre::Result<Self> {
         Ok(Self {
-            converter: EntryConverter::from_args(&args, conf.sources_dir)?,
+            converter: EntryConverter::new(&ConvertArgs::from_cli(&args)?, conf.sources_dir)?,
         })
     }
 }

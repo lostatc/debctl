@@ -309,25 +309,6 @@ impl OptionMap {
         }
     }
 
-    /// Insert the given option, or a default value if it is empty.
-    pub fn insert_or_else<T: Into<OptionValue>>(
-        &mut self,
-        name: impl Into<OptionName>,
-        value: impl Into<OptionValue>,
-        default: impl FnOnce() -> eyre::Result<T>,
-    ) -> eyre::Result<()> {
-        let option_name = name.into();
-        let option_value = value.into();
-
-        if option_value.is_empty() {
-            self.0.insert(option_name, default()?.into());
-        } else {
-            self.0.insert(option_name, option_value);
-        }
-
-        Ok(())
-    }
-
     /// Insert the signing key as an option.
     pub fn insert_key(&mut self, key: SigningKey) -> eyre::Result<()> {
         if self.contains(KnownOptionName::SignedBy) {

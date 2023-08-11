@@ -4,30 +4,13 @@ use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use eyre::{bail, WrapErr};
-use reqwest::Url;
 
-use crate::args::OverwriteAction;
-use crate::cli::{Add, New, OverwriteArgs, SigningKeyArgs};
-use crate::codename::get_version_codename;
+use crate::args::{AddArgs, NewArgs, OverwriteAction};
 use crate::error::Error;
 use crate::file::SourceFile;
-use crate::key::{KeyDestination, KeySource, SigningKey};
-use crate::option::{KnownOptionName, OptionMap};
-use crate::parse::{parse_custom_option, parse_line_entry};
+use crate::key::{KeyDest, KeySource, SigningKey};
+use crate::option::OptionMap;
 use crate::pgp::GnupgClient;
-
-impl OverwriteArgs {
-    /// What to do if a repo source file already exists.
-    pub fn action(&self) -> OverwriteAction {
-        if self.overwrite {
-            OverwriteAction::Overwrite
-        } else if self.append {
-            OverwriteAction::Append
-        } else {
-            OverwriteAction::Fail
-        }
-    }
-}
 
 /// A plan for how we will install the source entry.
 ///
@@ -100,35 +83,6 @@ pub struct SourceEntry {
     key: Option<KeySource>,
 }
 
-impl SigningKeyArgs {
-    /// Where we're fetching the signing key from.
-    pub fn key_source(&self) -> eyre::Result<Option<KeySource>> {
-        Ok(match (&self.location.key, &self.keyserver) {
-            (Some(key_location), Some(keyserver)) => Some(KeySource::Keyserver {
-                id: key_location.to_string(),
-                keyserver: keyserver.to_string(),
-            }),
-            (Some(key_location), None) => match Url::parse(key_location) {
-                Ok(url) => Some(KeySource::Download { url }),
-                Err(_) => {
-                    let path = Path::new(&key_location);
-
-                    if path.exists() {
-                        Some(KeySource::File {
-                            path: path.to_path_buf(),
-                        })
-                    } else {
-                        bail!(Error::InvalidKeyLocation {
-                            path: key_location.to_string()
-                        });
-                    }
-                }
-            },
-            (None, _) => None,
-        })
-    }
-}
-
 impl SourceEntry {
     /// Create a new instance.
     pub fn new(options: OptionMap, key: Option<KeySource>) -> Self {
@@ -141,70 +95,27 @@ impl SourceEntry {
     }
 
     /// Construct an instance from the CLI `args`.
-    pub fn from_new_args(args: &New) -> eyre::Result<Self> {
-        let mut options = args
-            .option
-            .iter()
-            .map(|option| parse_custom_option(option, args.force_literal_options))
-            .collect::<Result<OptionMap, _>>()?;
-
-        options.insert(KnownOptionName::Uris, &args.uri);
-
-        options.insert(KnownOptionName::Types, &args.kind);
-
-        options.insert(KnownOptionName::Components, &args.component);
-
-        options.insert(KnownOptionName::Architectures, &args.arch);
-
-        options.insert(KnownOptionName::Languages, &args.lang);
-
-        options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
-
-        options.insert_or_else(
-            KnownOptionName::Suites,
-            args.suite.to_owned(),
-            get_version_codename,
-        )?;
-
-        if let Some(description) = &args.description.description {
-            options.insert(KnownOptionName::RepolibName, description);
-        }
-
-        Ok(Self {
-            options,
-            key: args.key.key_source()?,
-        })
+    pub fn from_new(args: &NewArgs) -> eyre::Result<Self> {
+        Ok(Self::new(args.options(), args.key().source.clone()))
     }
 
     /// Construct an instance from the CLI `args`.
-    pub fn from_add_args(args: &Add) -> eyre::Result<Self> {
-        let mut options =
-            parse_line_entry(&args.line).wrap_err("failed parsing one-line-style source entry")?;
-
-        options.insert(KnownOptionName::Enabled, !args.disabled.disabled);
-
-        if let Some(description) = &args.description.description {
-            options.insert(KnownOptionName::RepolibName, description);
-        }
-
-        Ok(Self {
-            options,
-            key: args.key.key_source()?,
-        })
+    pub fn from_add(args: &AddArgs) -> eyre::Result<Self> {
+        Ok(Self::new(args.options()?, args.key().source.to_owned()))
     }
 
     /// Install the key for this source entry.
-    pub fn install_key(&mut self, client: &GnupgClient, dest: &KeyDestination) -> eyre::Result<()> {
+    pub fn install_key(&mut self, client: &GnupgClient, dest: &KeyDest) -> eyre::Result<()> {
         if let Some(key_location) = &self.key {
             let key = match dest {
-                KeyDestination::File { path } => {
+                KeyDest::File { path } => {
                     key_location
                         .install(client, path)
                         .wrap_err("failed installing signing key to file")?;
 
                     SigningKey::File { path: path.clone() }
                 }
-                KeyDestination::Inline => SigningKey::Inline {
+                KeyDest::Inline => SigningKey::Inline {
                     value: key_location
                         .to_value(client)
                         .wrap_err("failed installing inline signing key")?,
@@ -318,7 +229,7 @@ mod tests {
 
     impl EntryParams {
         pub fn install(&self, file: &SourceFile, action: OverwriteAction) -> eyre::Result<()> {
-            SourceEntry::from_new_args(&self.args)?.install(file, action)
+            SourceEntry::from_new(&NewArgs::from_cli(self.args.clone())?)?.install(file, action)
         }
     }
 

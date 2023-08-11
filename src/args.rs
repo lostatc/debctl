@@ -8,45 +8,38 @@
 
 use std::path::{Path, PathBuf};
 
-use eyre::bail;
+use eyre::{bail, WrapErr};
 use reqwest::Url;
 
 use crate::cli;
 use crate::codename::get_version_codename;
 use crate::error::Error;
-use crate::option::OptionMap;
-use crate::parse::parse_custom_option;
+use crate::key::{KeyDest, KeySource};
+use crate::option::{KnownOptionName, OptionMap};
+use crate::parse::{parse_custom_option, parse_line_entry};
 use crate::types::SourceType;
 
-#[derive(Debug, Clone)]
-pub enum KeySource {
-    NoKey,
-    Url { url: Url },
-    File { path: PathBuf },
-    Keyserver { id: String, keyserver: Url },
-}
-
 impl KeySource {
-    fn from_cli(args: &cli::SigningKeyArgs) -> eyre::Result<Self> {
+    fn from_cli(args: &cli::SigningKeyArgs) -> eyre::Result<Option<Self>> {
         Ok(match (&args.location.key, args.location.force_no_key) {
-            (None, true) => Self::NoKey,
+            (None, true) => None,
             (None, false) => bail!("must either specify a key or force no key"),
             (Some(_), true) => bail!("cannot both specify a key and force no key"),
             (Some(key), false) => {
                 if let Some(keyserver) = &args.keyserver {
-                    Self::Keyserver {
+                    Some(Self::Keyserver {
                         id: key.to_owned(),
-                        keyserver: Url::parse(keyserver.as_str())?,
-                    }
+                        keyserver: keyserver.to_owned(),
+                    })
                 } else if let Ok(url) = Url::parse(key.as_str()) {
-                    Self::Url { url }
+                    Some(Self::Download { url })
                 } else {
                     let key_path = Path::new(key.as_str());
 
                     if key_path.exists() {
-                        Self::File {
+                        Some(Self::File {
                             path: key_path.to_path_buf(),
-                        }
+                        })
                     } else {
                         bail!(Error::InvalidKeyLocation {
                             path: key.to_string()
@@ -56,12 +49,6 @@ impl KeySource {
             }
         })
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum KeyDest {
-    Inline,
-    File { path: PathBuf },
 }
 
 impl KeyDest {
@@ -107,7 +94,7 @@ impl OverwriteAction {
 
 #[derive(Debug, Clone)]
 pub struct KeyArgs {
-    pub source: KeySource,
+    pub source: Option<KeySource>,
     pub dest: KeyDest,
 }
 
@@ -122,18 +109,18 @@ impl KeyArgs {
 
 #[derive(Debug, Clone)]
 pub struct NewArgs {
-    pub name: String,
-    pub uris: Vec<Url>,
-    pub description: Option<String>,
-    pub suites: Vec<String>,
-    pub components: Vec<String>,
-    pub kinds: Vec<SourceType>,
-    pub key: KeyArgs,
-    pub arch: Vec<String>,
-    pub lang: Vec<String>,
-    pub options: OptionMap,
-    pub disabled: bool,
-    pub action: OverwriteAction,
+    name: String,
+    kinds: Vec<SourceType>,
+    uris: Vec<Url>,
+    description: Option<String>,
+    suites: Vec<String>,
+    components: Vec<String>,
+    arch: Vec<String>,
+    lang: Vec<String>,
+    disabled: bool,
+    options: OptionMap,
+    key: KeyArgs,
+    action: OverwriteAction,
 }
 
 impl NewArgs {
@@ -177,38 +164,118 @@ impl NewArgs {
             action: OverwriteAction::from_cli(args.overwrite)?,
         })
     }
+
+    /// The full map of source entry options passed at the CLI.
+    pub fn options(&self) -> OptionMap {
+        let mut options = self.options.clone();
+
+        options.insert(KnownOptionName::Types, &self.kinds);
+
+        options.insert(
+            KnownOptionName::Uris,
+            &self
+                .uris
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        );
+
+        if let Some(description) = &self.description {
+            options.insert(KnownOptionName::RepolibName, description);
+        }
+
+        options.insert(KnownOptionName::Suites, &self.suites);
+
+        options.insert(KnownOptionName::Components, &self.components);
+
+        options.insert(KnownOptionName::Architectures, &self.arch);
+
+        options.insert(KnownOptionName::Languages, &self.lang);
+
+        options.insert(KnownOptionName::Enabled, !self.disabled);
+
+        options
+    }
+
+    /// The parameters for the signing key passed at the CLI.
+    pub fn key(&self) -> &KeyArgs {
+        &self.key
+    }
+
+    /// The name of the source entry.
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    /// The action to take if the source file already exists.
+    pub fn action(&self) -> OverwriteAction {
+        self.action
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct AddArgs {
-    pub line: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub key: KeyArgs,
-    pub disabled: bool,
-    pub action: OverwriteAction,
+    name: String,
+    line: String,
+    description: Option<String>,
+    key: KeyArgs,
+    disabled: bool,
+    action: OverwriteAction,
 }
 
 impl AddArgs {
+    /// Parse and validate the CLI args.
+    ///
+    /// As a precaution, this validates some things that *should* already be validated by `clap`.
     pub fn from_cli(args: cli::Add) -> eyre::Result<Self> {
         Ok(Self {
-            line: args.line,
             name: args.name.clone(),
+            line: args.line,
             description: args.description.description,
             key: KeyArgs::from_cli(&args.key, &args.name)?,
             disabled: args.disabled.disabled,
             action: OverwriteAction::from_cli(args.overwrite)?,
         })
     }
+
+    /// The full map of source entry options passed at the CLI.
+    pub fn options(&self) -> eyre::Result<OptionMap> {
+        let mut options =
+            parse_line_entry(&self.line).wrap_err("failed parsing one-line-style source entry")?;
+
+        options.insert(KnownOptionName::Enabled, !self.disabled);
+
+        if let Some(description) = &self.description {
+            options.insert(KnownOptionName::RepolibName, description);
+        }
+
+        Ok(options)
+    }
+
+    /// The parameters for the signing key passed at the CLI.
+    pub fn key(&self) -> &KeyArgs {
+        &self.key
+    }
+
+    /// The name of the source entry.
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    /// The action to take if the source file already exists.
+    pub fn action(&self) -> OverwriteAction {
+        self.action
+    }
 }
 
+/// How to back up a source file when converting.
 #[derive(Debug, Clone)]
-pub enum BackupStrategy {
+pub enum BackupMode {
     Backup,
     BackupTo { path: PathBuf },
 }
 
-impl BackupStrategy {
+impl BackupMode {
     fn from_cli(args: &cli::Convert) -> eyre::Result<Option<Self>> {
         Ok(match (args.backup, &args.backup_to) {
             (true, None) => Some(Self::Backup),
@@ -223,11 +290,12 @@ impl BackupStrategy {
     }
 }
 
+/// The locations of the source and destination files when converting.
 #[derive(Debug, Clone)]
 pub enum ConvertLocator {
     Name {
         name: String,
-        backup: Option<BackupStrategy>,
+        backup: Option<BackupMode>,
     },
     File {
         source: PathBuf,
@@ -244,7 +312,7 @@ impl ConvertLocator {
 
             Self::Name {
                 name: name.to_owned(),
-                backup: BackupStrategy::from_cli(&args)?,
+                backup: BackupMode::from_cli(args)?,
             }
         } else {
             match (&args.in_path, &args.out_path) {
@@ -260,9 +328,9 @@ impl ConvertLocator {
 
 #[derive(Debug, Clone)]
 pub struct ConvertArgs {
-    pub locator: ConvertLocator,
-    pub skip_comments: bool,
-    pub skip_disabled: bool,
+    locator: ConvertLocator,
+    skip_comments: bool,
+    skip_disabled: bool,
 }
 
 impl ConvertArgs {
@@ -272,5 +340,24 @@ impl ConvertArgs {
             skip_comments: args.skip_comments,
             skip_disabled: args.skip_disabled,
         })
+    }
+
+    pub fn locator(&self) -> &ConvertLocator {
+        &self.locator
+    }
+
+    pub fn backup_mode(&self) -> Option<&BackupMode> {
+        match &self.locator {
+            ConvertLocator::Name { backup, .. } => backup.as_ref(),
+            ConvertLocator::File { .. } => None,
+        }
+    }
+
+    pub fn skip_comments(&self) -> bool {
+        self.skip_comments
+    }
+
+    pub fn skip_disabled(&self) -> bool {
+        self.skip_disabled
     }
 }

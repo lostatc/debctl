@@ -5,32 +5,11 @@ use std::path::{Path, PathBuf};
 
 use eyre::{bail, eyre, WrapErr};
 
-use crate::args::OverwriteAction;
-use crate::cli::Convert;
+use crate::args::{BackupMode, ConvertArgs, ConvertLocator, OverwriteAction};
 use crate::entry::SourceEntry;
 use crate::error::Error;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::parse::{parse_line_file, ConvertedLineEntry, ParseLineFileOptions};
-
-/// How to back up the original file when converting a repo source file.
-#[derive(Debug)]
-pub enum BackupMode {
-    Backup,
-    BackupTo { path: PathBuf },
-}
-
-impl BackupMode {
-    /// Create an instance from CLI args.
-    pub fn from_args(args: &Convert) -> Option<Self> {
-        if args.backup {
-            Some(Self::Backup)
-        } else {
-            args.backup_to.as_ref().map(|path| Self::BackupTo {
-                path: path.to_owned(),
-            })
-        }
-    }
-}
 
 /// Return whether this path is "-", meaning to read from stdin or write to stdout.
 fn path_is_stdio(path: &Path) -> bool {
@@ -42,6 +21,13 @@ fn path_is_stdio(path: &Path) -> bool {
 enum IoStream {
     File(SourceFile),
     Stdio,
+}
+
+/// The streams to read the source file from and write the source file to.
+#[derive(Debug, Clone)]
+struct Streams {
+    source: IoStream,
+    dest: IoStream,
 }
 
 /// A plan for backing up a file.
@@ -97,60 +83,50 @@ impl fmt::Display for ConvertPlan {
 pub struct EntryConverter {
     entries: Vec<ConvertedLineEntry>,
     backup_mode: Option<BackupMode>,
-    in_file: IoStream,
-    out_file: IoStream,
+    streams: Streams,
 }
 
-impl Convert {
-    /// The input source file.
-    fn in_file(&self, sources_dir: PathBuf) -> eyre::Result<IoStream> {
-        Ok(if let Some(name) = &self.name {
-            IoStream::File(SourceFile {
-                path: SourceFilePath::Installed {
-                    name: name.to_owned(),
-                    dir: sources_dir,
-                },
-                kind: SourceFileKind::OneLine,
-            })
-        } else if let Some(path) = &self.in_path {
-            if path_is_stdio(path) {
-                IoStream::Stdio
-            } else {
-                IoStream::File(SourceFile {
-                    path: SourceFilePath::File {
-                        path: path.to_owned(),
+impl ConvertLocator {
+    fn to_streams(&self, sources_dir: &Path) -> eyre::Result<Streams> {
+        Ok(match self {
+            ConvertLocator::Name { name, .. } => Streams {
+                source: IoStream::File(SourceFile {
+                    path: SourceFilePath::Installed {
+                        name: name.to_owned(),
+                        dir: sources_dir.to_owned(),
                     },
                     kind: SourceFileKind::OneLine,
-                })
-            }
-        } else {
-            bail!("unable to parse CLI arguments")
-        })
-    }
-
-    /// The output source file.
-    fn out_file(&self, sources_dir: PathBuf) -> eyre::Result<IoStream> {
-        Ok(if let Some(name) = &self.name {
-            IoStream::File(SourceFile {
-                path: SourceFilePath::Installed {
-                    name: name.to_owned(),
-                    dir: sources_dir,
-                },
-                kind: SourceFileKind::Deb822,
-            })
-        } else if let Some(path) = &self.out_path {
-            if path_is_stdio(path) {
-                IoStream::Stdio
-            } else {
-                IoStream::File(SourceFile {
-                    path: SourceFilePath::File {
-                        path: path.to_owned(),
+                }),
+                dest: IoStream::File(SourceFile {
+                    path: SourceFilePath::Installed {
+                        name: name.to_owned(),
+                        dir: sources_dir.to_owned(),
                     },
                     kind: SourceFileKind::Deb822,
-                })
-            }
-        } else {
-            bail!("unable to parse CLI arguments")
+                }),
+            },
+            ConvertLocator::File { source, dest } => Streams {
+                source: if path_is_stdio(source) {
+                    IoStream::Stdio
+                } else {
+                    IoStream::File(SourceFile {
+                        path: SourceFilePath::File {
+                            path: source.to_owned(),
+                        },
+                        kind: SourceFileKind::OneLine,
+                    })
+                },
+                dest: if path_is_stdio(dest) {
+                    IoStream::Stdio
+                } else {
+                    IoStream::File(SourceFile {
+                        path: SourceFilePath::File {
+                            path: dest.to_owned(),
+                        },
+                        kind: SourceFileKind::Deb822,
+                    })
+                },
+            },
         })
     }
 }
@@ -159,11 +135,10 @@ impl EntryConverter {
     pub const BACKUP_SUFFIX: &str = ".bak";
 
     /// Construct an instance from CLI args.
-    pub fn from_args(args: &Convert, sources_dir: PathBuf) -> eyre::Result<Self> {
-        let in_file = args.in_file(sources_dir.clone())?;
-        let out_file = args.out_file(sources_dir.clone())?;
+    pub fn new(args: &ConvertArgs, sources_dir: PathBuf) -> eyre::Result<Self> {
+        let streams = args.locator().to_streams(&sources_dir)?;
 
-        let mut source_stream: Box<dyn Read> = match &in_file {
+        let mut source_stream: Box<dyn Read> = match &streams.source {
             IoStream::Stdio => Box::new(io::stdin()),
             IoStream::File(source_file) => match File::open(source_file.path()) {
                 Ok(file) => Box::new(file),
@@ -177,13 +152,13 @@ impl EntryConverter {
         };
 
         let parse_options = ParseLineFileOptions {
-            skip_comments: args.skip_comments,
-            skip_disabled: args.skip_disabled,
+            skip_comments: args.skip_comments(),
+            skip_disabled: args.skip_disabled(),
         };
 
         let entries = match parse_line_file(&mut source_stream, &parse_options) {
             Ok(options) => options,
-            Err(err) => match (in_file, err.downcast_ref::<io::Error>()) {
+            Err(err) => match (&streams.source, err.downcast_ref::<io::Error>()) {
                 (IoStream::File(source_file), Some(io_err))
                     if io_err.kind() == io::ErrorKind::NotFound =>
                 {
@@ -195,13 +170,10 @@ impl EntryConverter {
             },
         };
 
-        let backup_mode = BackupMode::from_args(args);
-
         Ok(EntryConverter {
             entries,
-            backup_mode,
-            in_file,
-            out_file,
+            backup_mode: args.backup_mode().map(ToOwned::to_owned),
+            streams,
         })
     }
 
@@ -209,11 +181,11 @@ impl EntryConverter {
     pub fn plan(&self) -> ConvertPlan {
         ConvertPlan {
             backed_up: self.backup_plan().map(|plan| plan.backup),
-            created: match &self.out_file {
+            created: match &self.streams.dest {
                 IoStream::File(source_file) => Some(source_file.path().into_owned()),
                 IoStream::Stdio => None,
             },
-            removed: match &self.in_file {
+            removed: match &self.streams.source {
                 IoStream::File(
                     path @ SourceFile {
                         path: SourceFilePath::Installed { .. },
@@ -229,7 +201,7 @@ impl EntryConverter {
     ///
     /// If this returns `None`, no backup is necessary.
     fn backup_plan(&self) -> Option<BackupPlan> {
-        match &self.in_file {
+        match &self.streams.source {
             IoStream::File(source_file) => match &self.backup_mode {
                 Some(BackupMode::Backup) => Some(BackupPlan {
                     original: source_file.path().into_owned(),
@@ -289,7 +261,7 @@ impl EntryConverter {
     ///
     /// If this returns `None`, then we're writing to stdout.
     fn open_dest_file(&self) -> eyre::Result<Option<File>> {
-        let out_path = match &self.out_file {
+        let out_path = match &self.streams.dest {
             IoStream::File(source_file) => source_file.path(),
             IoStream::Stdio => return Ok(None),
         };
@@ -316,7 +288,7 @@ impl EntryConverter {
 
     /// Delete the original source file.
     fn remove_original(&self) -> eyre::Result<()> {
-        match &self.in_file {
+        match &self.streams.source {
             // We only delete the original file if we're installing the new file directly into the
             // apt sources directory.
             IoStream::File(
@@ -368,7 +340,7 @@ impl EntryConverter {
             }
         }
 
-        if let IoStream::Stdio = self.out_file {
+        if let IoStream::Stdio = self.streams.dest {
             output_file.seek(SeekFrom::Start(0))?;
             io::copy(&mut output_file, &mut io::stdout())?;
         }
@@ -404,7 +376,11 @@ mod tests {
 
     impl ConverterParams {
         pub fn convert(&self) -> eyre::Result<()> {
-            EntryConverter::from_args(&self.args, self.sources_dir.path().to_owned())?.convert()?;
+            EntryConverter::new(
+                &ConvertArgs::from_cli(&self.args)?,
+                self.sources_dir.path().to_owned(),
+            )?
+            .convert()?;
 
             Ok(())
         }

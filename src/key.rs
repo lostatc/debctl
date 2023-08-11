@@ -5,49 +5,22 @@ use std::path::{Path, PathBuf};
 use eyre::{bail, WrapErr};
 use reqwest::Url;
 
-use crate::cli::KeyDestinationArgs;
 use crate::error::Error;
 use crate::option::OptionValue;
 use crate::pgp::{GnupgClient, Key, KeyEncoding, KeyId};
 
 /// The location to install a signing key to.
-#[derive(Debug)]
-pub enum KeyDestination {
-    /// Install it to a separate file.
-    File { path: PathBuf },
-
+#[derive(Debug, Clone)]
+pub enum KeyDest {
     /// Inline it into the source entry.
     Inline,
-}
 
-impl KeyDestination {
-    const DEFAULT_KEYRING_DIR: &str = "/etc/apt/keyrings";
-
-    /// Create an instance from CLI args.
-    pub fn from_args(args: &KeyDestinationArgs, name: &str) -> Self {
-        if args.inline_key {
-            Self::Inline
-        } else {
-            Self::File {
-                path: match &args.key_path {
-                    Some(path) => path.to_owned(),
-                    // This Debian wiki page recommends the `%s-archive-keyring.gpg` file naming
-                    // convention:
-                    // https://wiki.debian.org/DebianRepository/UseThirdParty
-                    None => [
-                        Self::DEFAULT_KEYRING_DIR,
-                        &format!("{}-archive-keyring.gpg", name),
-                    ]
-                    .iter()
-                    .collect(),
-                },
-            }
-        }
-    }
+    /// Install it to a separate file.
+    File { path: PathBuf },
 }
 
 /// A location to acquire a signing key from.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum KeySource {
     /// Download the key from a URL.
     Download { url: Url },
