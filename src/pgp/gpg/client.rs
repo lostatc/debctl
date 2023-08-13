@@ -23,6 +23,7 @@ fn pgp_armor_regex() -> &'static Regex {
     })
 }
 
+/// A PGP client that shells out to the GnuPG binary.
 #[derive(Debug, Clone)]
 pub struct GnupgClient {
     command: String,
