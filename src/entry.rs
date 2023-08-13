@@ -10,7 +10,7 @@ use crate::error::Error;
 use crate::file::SourceFile;
 use crate::key::{KeyDest, KeySource, SigningKey};
 use crate::option::OptionMap;
-use crate::pgp::GnupgClient;
+use crate::pgp::PgpClient;
 
 /// A plan for how we will install the source entry.
 ///
@@ -105,7 +105,7 @@ impl SourceEntry {
     }
 
     /// Install the key for this source entry.
-    pub fn install_key(&mut self, client: &GnupgClient, dest: &KeyDest) -> eyre::Result<()> {
+    pub fn install_key(&mut self, client: &dyn PgpClient, dest: &KeyDest) -> eyre::Result<()> {
         if let Some(key_location) = &self.key {
             let key = match dest {
                 KeyDest::File { path } => {

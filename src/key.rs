@@ -7,7 +7,7 @@ use reqwest::Url;
 
 use crate::error::Error;
 use crate::option::OptionValue;
-use crate::pgp::{GnupgClient, Key, KeyEncoding, KeyId, PgpClient};
+use crate::pgp::{Key, KeyEncoding, KeyId, PgpClient};
 
 /// The location to install a signing key to.
 #[derive(Debug, Clone)]
@@ -56,7 +56,7 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
 
 impl KeySource {
     /// Get signing key at this location.
-    fn get_key(&self, client: &GnupgClient, encoding: KeyEncoding) -> eyre::Result<Key> {
+    fn get_key(&self, client: &dyn PgpClient, encoding: KeyEncoding) -> eyre::Result<Key> {
         match self {
             Self::Download { url } => Ok(client
                 .download_key(url, encoding)
@@ -71,7 +71,7 @@ impl KeySource {
     }
 
     /// Install the signing key at this location to `dest`.
-    pub fn install(&self, client: &GnupgClient, dest: &Path) -> eyre::Result<()> {
+    pub fn install(&self, client: &dyn PgpClient, dest: &Path) -> eyre::Result<()> {
         let key = self
             .get_key(client, KeyEncoding::Binary)
             .wrap_err("failed getting signing key")?;
@@ -85,7 +85,7 @@ impl KeySource {
     }
 
     /// Get the key at this location as an option value.
-    pub fn to_value(&self, client: &GnupgClient) -> eyre::Result<OptionValue> {
+    pub fn to_value(&self, client: &dyn PgpClient) -> eyre::Result<OptionValue> {
         let key = self
             .get_key(client, KeyEncoding::Armored)
             .wrap_err("failed getting signing key")?;

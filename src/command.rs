@@ -7,7 +7,7 @@ use crate::convert::EntryConverter;
 use crate::entry::SourceEntry;
 use crate::file::{SourceFile, SourceFileKind, SourceFilePath};
 use crate::key::KeyDest;
-use crate::pgp::GnupgClient;
+use crate::pgp::{GnupgClient, PgpClient};
 
 /// High-level configuration for the program.
 pub struct Config {
@@ -20,8 +20,8 @@ pub struct Config {
 
 impl Config {
     /// Create a new PGP client.
-    pub fn pgp_client(&self) -> GnupgClient {
-        GnupgClient::new(&self.gpg_path)
+    pub fn pgp_client(&self) -> Box<dyn PgpClient> {
+        Box::new(GnupgClient::new(&self.gpg_path))
     }
 }
 
@@ -35,7 +35,7 @@ pub trait Command {
 }
 
 pub struct NewCommand {
-    client: GnupgClient,
+    client: Box<dyn PgpClient>,
     action: OverwriteAction,
     key_dest: KeyDest,
     entry: SourceEntry,
@@ -64,7 +64,8 @@ impl NewCommand {
 
 impl Command for NewCommand {
     fn run(&mut self) -> eyre::Result<()> {
-        self.entry.install_key(&self.client, &self.key_dest)?;
+        self.entry
+            .install_key(self.client.as_ref(), &self.key_dest)?;
         self.entry.install(&self.source_file, self.action)?;
 
         Ok(())
@@ -88,7 +89,7 @@ impl Command for NewCommand {
 }
 
 pub struct AddCommand {
-    client: GnupgClient,
+    client: Box<dyn PgpClient>,
     action: OverwriteAction,
     key_dest: KeyDest,
     entry: SourceEntry,
@@ -117,7 +118,8 @@ impl AddCommand {
 
 impl Command for AddCommand {
     fn run(&mut self) -> eyre::Result<()> {
-        self.entry.install_key(&self.client, &self.key_dest)?;
+        self.entry
+            .install_key(self.client.as_ref(), &self.key_dest)?;
         self.entry.install(&self.source_file, self.action)?;
 
         Ok(())
