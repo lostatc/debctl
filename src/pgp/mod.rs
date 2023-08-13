@@ -1,8 +1,5 @@
 mod client;
-mod key;
-mod keyring;
-mod net;
+mod gpg;
 
-pub use client::GnupgClient;
-pub use key::{Key, KeyEncoding, KeyId};
-pub use keyring::Keyring;
+pub use client::{Key, KeyEncoding, KeyId, PgpClient};
+pub use gpg::GnupgClient;

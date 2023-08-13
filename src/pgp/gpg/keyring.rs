@@ -4,9 +4,10 @@ use eyre::{bail, WrapErr};
 use tempfile::NamedTempFile;
 
 use crate::error::Error;
+use crate::pgp::{KeyEncoding, KeyId};
 use crate::stdio::{read_stderr, read_stdout, wait, write_stdin};
 
-use super::key::{Key, KeyEncoding, KeyId};
+use super::key::GnupgKey;
 use super::GnupgClient;
 
 /// A PGP key in a keyring.
@@ -60,7 +61,7 @@ impl Keyring {
     }
 
     /// Import a key into this keyring.
-    pub fn import(&mut self, key: &mut Key) -> eyre::Result<KeyringKey> {
+    pub fn import(&mut self, key: &mut GnupgKey) -> eyre::Result<KeyringKey> {
         let mut process = self
             .client
             .command()
@@ -84,7 +85,7 @@ impl Keyring {
     }
 
     /// Export a key from this keyring.
-    pub fn export(&mut self, key: KeyringKey, encoding: KeyEncoding) -> eyre::Result<Key> {
+    pub fn export(&mut self, key: KeyringKey, encoding: KeyEncoding) -> eyre::Result<GnupgKey> {
         let mut process = self
             .client
             .command()
@@ -109,6 +110,6 @@ impl Keyring {
 
         let key_bytes = stdout_handle.join()?;
 
-        Ok(self.client.new_key(key_bytes, encoding, Some(key.id)))
+        self.client.new_key(key_bytes, encoding, Some(key.id))
     }
 }

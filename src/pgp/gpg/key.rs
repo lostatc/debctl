@@ -3,6 +3,7 @@ use std::process::Stdio;
 
 use eyre::{bail, WrapErr};
 
+use crate::pgp::{KeyEncoding, KeyId};
 use crate::stdio::{read_stderr, read_stdout, wait, write_stdin};
 
 use super::client::GnupgClient;
@@ -43,7 +44,7 @@ impl ColonOutput {
             }
 
             match line.get(Self::KEY_ID_INDEX) {
-                Some(key_id) => return Ok(KeyId(key_id.to_string())),
+                Some(key_id) => return Ok(KeyId::new(key_id.to_string())),
                 None => bail!("could not find key id in gpg colon output"),
             }
         }
@@ -52,50 +53,33 @@ impl ColonOutput {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct KeyId(String);
-
-impl KeyId {
-    pub fn new(id: String) -> Self {
-        Self(id)
-    }
-}
-
-impl AsRef<str> for KeyId {
-    fn as_ref(&self) -> &str {
-        self.0.as_ref()
-    }
-}
-
-/// The encoding of a PGP key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyEncoding {
-    Armored,
-    Binary,
-}
-
 impl GnupgClient {
     /// Create a new PGP key.
-    pub(super) fn new_key(&self, key: Vec<u8>, encoding: KeyEncoding, id: Option<KeyId>) -> Key {
-        Key {
+    pub(super) fn new_key(
+        &self,
+        bytes: Vec<u8>,
+        encoding: KeyEncoding,
+        id: Option<KeyId>,
+    ) -> eyre::Result<GnupgKey> {
+        Ok(GnupgKey {
             client: self.clone(),
-            key,
+            bytes,
             encoding,
             id,
-        }
+        })
     }
 }
 
-/// A PGP key in a file.
+/// A PGP key specific to the GnuPG implementation.
 #[derive(Debug)]
-pub struct Key {
+pub struct GnupgKey {
     client: GnupgClient,
-    key: Vec<u8>,
+    bytes: Vec<u8>,
     encoding: KeyEncoding,
     id: Option<KeyId>,
 }
 
-impl Key {
+impl GnupgKey {
     /// Dearmor this key.
     pub fn dearmor(self) -> eyre::Result<Self> {
         if self.encoding == KeyEncoding::Binary {
@@ -115,7 +99,7 @@ impl Key {
         let stdout_handle = read_stdout(&mut process);
         let stderr_handle = read_stderr(&mut process);
 
-        write_stdin(&mut process, &mut self.key.as_slice())?;
+        write_stdin(&mut process, &mut self.bytes.as_slice())?;
 
         wait(process, stderr_handle)?;
 
@@ -123,7 +107,7 @@ impl Key {
 
         Ok(Self {
             client: self.client,
-            key: dearmored_key,
+            bytes: dearmored_key,
             encoding: KeyEncoding::Binary,
             id: self.id,
         })
@@ -169,7 +153,7 @@ impl Key {
         let stdout_handle = read_stdout(&mut process);
         let stderr_handle = read_stderr(&mut process);
 
-        write_stdin(&mut process, &mut self.key.as_slice())?;
+        write_stdin(&mut process, &mut self.bytes.as_slice())?;
 
         wait(process, stderr_handle)?;
 
@@ -183,10 +167,15 @@ impl Key {
 
         Ok(key_id)
     }
+
+    /// Consume this key and return its bytes.
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.bytes
+    }
 }
 
-impl AsRef<[u8]> for Key {
+impl AsRef<[u8]> for GnupgKey {
     fn as_ref(&self) -> &[u8] {
-        self.key.as_slice()
+        self.bytes.as_slice()
     }
 }

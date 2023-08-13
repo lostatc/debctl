@@ -7,7 +7,7 @@ use reqwest::Url;
 
 use crate::error::Error;
 use crate::option::OptionValue;
-use crate::pgp::{GnupgClient, Key, KeyEncoding, KeyId};
+use crate::pgp::{GnupgClient, Key, KeyEncoding, KeyId, PgpClient};
 
 /// The location to install a signing key to.
 #[derive(Debug, Clone)]
@@ -56,39 +56,29 @@ fn open_key_destination(path: &Path) -> eyre::Result<File> {
 
 impl KeySource {
     /// Get signing key at this location.
-    fn get_key(&self, client: &GnupgClient) -> eyre::Result<Key> {
+    fn get_key(&self, client: &GnupgClient, encoding: KeyEncoding) -> eyre::Result<Key> {
         match self {
             Self::Download { url } => Ok(client
-                .download_key(url)
+                .download_key(url, encoding)
                 .wrap_err("failed downloading signing key")?),
             Self::File { path } => Ok(client
-                .read_key(path)
+                .read_key(path, encoding)
                 .wrap_err("failed getting signing key from file")?),
-            Self::Keyserver { id, keyserver } => {
-                let mut keyring = client.new_keyring().wrap_err("failed creating keyring")?;
-
-                let keyring_key = keyring
-                    .recv_key(keyserver, KeyId::new(id.to_string()))
-                    .wrap_err("failed getting signing key from keyserver")?;
-
-                Ok(keyring
-                    .export(keyring_key, KeyEncoding::Binary)
-                    .wrap_err("failed exporting signing key from keyring")?)
-            }
+            Self::Keyserver { id, keyserver } => Ok(client
+                .recv_key(keyserver, KeyId::new(id.to_string()), encoding)
+                .wrap_err("failed getting signing key from keyserver")?),
         }
     }
 
     /// Install the signing key at this location to `dest`.
     pub fn install(&self, client: &GnupgClient, dest: &Path) -> eyre::Result<()> {
         let key = self
-            .get_key(client)
+            .get_key(client, KeyEncoding::Binary)
             .wrap_err("failed getting signing key")?;
-
-        let dearmored_key = key.dearmor().wrap_err("failed dearmoring signing key")?;
 
         let mut dest_file = open_key_destination(dest)?;
 
-        io::copy(&mut dearmored_key.as_ref(), &mut dest_file)
+        io::copy(&mut key.as_ref(), &mut dest_file)
             .wrap_err("failed copying key to destination")?;
 
         Ok(())
@@ -97,13 +87,11 @@ impl KeySource {
     /// Get the key at this location as an option value.
     pub fn to_value(&self, client: &GnupgClient) -> eyre::Result<OptionValue> {
         let key = self
-            .get_key(client)
+            .get_key(client, KeyEncoding::Armored)
             .wrap_err("failed getting signing key")?;
 
-        let armored_key = key.enarmor().wrap_err("failed armoring signing key")?;
-
         Ok(OptionValue::Multiline(
-            BufReader::new(armored_key.as_ref())
+            BufReader::new(key.as_ref())
                 .lines()
                 .collect::<Result<Vec<_>, _>>()?,
         ))
