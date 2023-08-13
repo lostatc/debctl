@@ -20,6 +20,7 @@ use crate::parse::{parse_custom_option, parse_line_entry};
 use crate::types::SourceType;
 
 impl KeySource {
+    /// Parse and validate CLI args.
     fn from_cli(args: &cli::SigningKeyArgs) -> eyre::Result<Option<Self>> {
         Ok(match (&args.location.key, args.location.force_no_key) {
             (None, true) => None,
@@ -54,6 +55,7 @@ impl KeySource {
 impl KeyDest {
     const DEFAULT_KEYRING_DIR: &str = "/etc/apt/keyrings";
 
+    /// Parse and validate CLI args.
     fn from_cli(args: &cli::KeyDestinationArgs, name: &str) -> eyre::Result<Self> {
         Ok(match (&args.key_path, args.inline_key) {
             (None, true) => Self::Inline,
@@ -82,6 +84,7 @@ pub enum OverwriteAction {
 }
 
 impl OverwriteAction {
+    /// Parse and validate CLI args.
     fn from_cli(args: cli::OverwriteArgs) -> eyre::Result<Self> {
         Ok(match (args.overwrite, args.append) {
             (true, true) => bail!("cannot both overwrite and append"),
@@ -92,6 +95,7 @@ impl OverwriteAction {
     }
 }
 
+/// Args for locating a key and where to install it.
 #[derive(Debug, Clone)]
 pub struct KeyArgs {
     pub source: Option<KeySource>,
@@ -99,6 +103,7 @@ pub struct KeyArgs {
 }
 
 impl KeyArgs {
+    /// Parse and validate CLI args.
     fn from_cli(args: &cli::SigningKeyArgs, name: &str) -> eyre::Result<Self> {
         Ok(Self {
             source: KeySource::from_cli(args)?,
@@ -107,6 +112,7 @@ impl KeyArgs {
     }
 }
 
+/// Args for creating a new repo source entry.
 #[derive(Debug, Clone)]
 pub struct NewArgs {
     name: String,
@@ -124,9 +130,7 @@ pub struct NewArgs {
 }
 
 impl NewArgs {
-    /// Parse and validate the CLI args.
-    ///
-    /// As a precaution, this validates some things that *should* already be validated by `clap`.
+    /// Parse and validate CLI args.
     pub fn from_cli(args: cli::New) -> eyre::Result<Self> {
         Ok(Self {
             name: args.name.clone(),
@@ -213,6 +217,7 @@ impl NewArgs {
     }
 }
 
+/// Args for creating a new repo source entry from a single-line entry.
 #[derive(Debug, Clone)]
 pub struct AddArgs {
     name: String,
@@ -224,9 +229,7 @@ pub struct AddArgs {
 }
 
 impl AddArgs {
-    /// Parse and validate the CLI args.
-    ///
-    /// As a precaution, this validates some things that *should* already be validated by `clap`.
+    /// Parse and validate CLI args.
     pub fn from_cli(args: cli::Add) -> eyre::Result<Self> {
         Ok(Self {
             name: args.name.clone(),
@@ -304,6 +307,7 @@ pub enum ConvertLocator {
 }
 
 impl ConvertLocator {
+    /// Parse and validate CLI args.
     fn from_cli(args: &cli::Convert) -> eyre::Result<Self> {
         Ok(if let Some(name) = &args.name {
             if args.in_path.is_some() || args.out_path.is_some() {
@@ -326,6 +330,7 @@ impl ConvertLocator {
     }
 }
 
+/// Args for converting repo source files.
 #[derive(Debug, Clone)]
 pub struct ConvertArgs {
     locator: ConvertLocator,
@@ -334,6 +339,7 @@ pub struct ConvertArgs {
 }
 
 impl ConvertArgs {
+    /// Parse and validate CLI args.
     pub fn from_cli(args: &cli::Convert) -> eyre::Result<Self> {
         Ok(Self {
             locator: ConvertLocator::from_cli(args)?,
@@ -342,10 +348,12 @@ impl ConvertArgs {
         })
     }
 
+    /// The locations of the source and destination files when converting.
     pub fn locator(&self) -> &ConvertLocator {
         &self.locator
     }
 
+    /// How to back up the original file.
     pub fn backup_mode(&self) -> Option<&BackupMode> {
         match &self.locator {
             ConvertLocator::Name { backup, .. } => backup.as_ref(),
@@ -353,10 +361,12 @@ impl ConvertArgs {
         }
     }
 
+    /// Skip transferring comment lines when converting.
     pub fn skip_comments(&self) -> bool {
         self.skip_comments
     }
 
+    /// Skip converting commented-out entries to disabled entries.
     pub fn skip_disabled(&self) -> bool {
         self.skip_disabled
     }
