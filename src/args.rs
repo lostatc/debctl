@@ -60,12 +60,9 @@ impl KeyDest {
         Ok(match (&args.key_path, args.inline_key) {
             (None, true) => Self::Inline,
             (None, false) => Self::File {
-                path: [
-                    Self::DEFAULT_KEYRING_DIR,
-                    &format!("{}-archive-keyring.gpg", name),
-                ]
-                .iter()
-                .collect(),
+                path: [Self::DEFAULT_KEYRING_DIR, &format!("{}.gpg", name)]
+                    .iter()
+                    .collect(),
             },
             (Some(_), true) => bail!("cannot both inline key and install it to a file"),
             (Some(path), false) => Self::File {

@@ -56,7 +56,7 @@ Types: deb
 URIs: https://download.docker.com/linux/ubuntu
 Suites: jammy
 Components: stable
-Signed-By: /etc/apt/keyrings/docker-archive-keyring.gpg
+Signed-By: /etc/apt/keyrings/docker.gpg
 ```
 
 Most documentation for third-party apt repositories directs users to use
@@ -78,7 +78,7 @@ Types: deb
 URIs: https://download.docker.com/linux/ubuntu
 Suites: jammy
 Components: stable
-Signed-By: /etc/apt/keyrings/docker-archive-keyring.gpg
+Signed-By: /etc/apt/keyrings/docker.gpg
 Architectures: amd64
 Languages: en de
 ```
