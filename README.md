@@ -1,3 +1,7 @@
+[![Tests Workflow Status (main)](https://img.shields.io/github/actions/workflow/status/lostatc/debctl/test.yaml?branch=main&label=Tests&style=for-the-badge&logo=github)](https://github.com/lostatc/debctl/actions/workflows/test.yaml)
+[![Crates.io](https://img.shields.io/crates/v/debctl?logo=rust&style=for-the-badge)](https://crates.io/crates/debctl)
+[![docs.rs](https://img.shields.io/docsrs/debctl?logo=docs.rs&style=for-the-badge)](https://docs.rs/debctl)
+
 # debctl
 
 debctl is a CLI tool for managing apt repositories. It's intended as a
