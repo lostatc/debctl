@@ -70,7 +70,7 @@ pub fn get_version_codename() -> eyre::Result<String> {
     match from_lsb_release() {
         Ok(codename) => Ok(codename),
         Err(err) => match err.downcast::<Error>() {
-            Ok(err) if err == Error::CouldNotInferSuite => from_etc_os_release(),
+            Ok(Error::CouldNotInferSuite) => from_etc_os_release(),
             Ok(err) => Err(eyre!(err)),
             Err(err) => Err(err),
         },

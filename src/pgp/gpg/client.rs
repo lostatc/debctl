@@ -18,9 +18,8 @@ static PGP_ARMOR_REGEX: OnceLock<Regex> = OnceLock::new();
 
 /// A regex which matches the first line of an ASCII-armored public PGP key.
 fn pgp_armor_regex() -> &'static Regex {
-    PGP_ARMOR_REGEX.get_or_init(|| {
-        Regex::new(r#"^\s*-----\s*BEGIN PGP PUBLIC KEY BLOCK\s*-----\s*$"#).unwrap()
-    })
+    PGP_ARMOR_REGEX
+        .get_or_init(|| Regex::new(r"^\s*-----\s*BEGIN PGP PUBLIC KEY BLOCK\s*-----\s*$").unwrap())
 }
 
 /// A PGP client that shells out to the GnuPG binary.
