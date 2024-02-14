@@ -53,7 +53,7 @@ impl KeySource {
 }
 
 impl KeyDest {
-    const DEFAULT_KEYRING_DIR: &str = "/etc/apt/keyrings";
+    const DEFAULT_KEYRING_DIR: &'static str = "/etc/apt/keyrings";
 
     /// Parse and validate CLI args.
     fn from_cli(args: &cli::KeyDestinationArgs, name: &str) -> eyre::Result<Self> {

@@ -132,7 +132,7 @@ impl ConvertLocator {
 }
 
 impl EntryConverter {
-    pub const BACKUP_SUFFIX: &str = ".bak";
+    pub const BACKUP_SUFFIX: &'static str = ".bak";
 
     /// Construct an instance from CLI args.
     pub fn new(args: &ConvertArgs, sources_dir: PathBuf) -> eyre::Result<Self> {
