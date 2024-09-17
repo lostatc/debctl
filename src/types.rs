@@ -1,3 +1,4 @@
+use std::fmt::{self, Display};
 use std::str::FromStr;
 
 use clap::ValueEnum;
@@ -13,11 +14,11 @@ pub enum SourceType {
     DebSrc,
 }
 
-impl ToString for SourceType {
-    fn to_string(&self) -> String {
+impl Display for SourceType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Deb => String::from("deb"),
-            Self::DebSrc => String::from("deb-src"),
+            Self::Deb => f.write_str("deb"),
+            Self::DebSrc => f.write_str("deb-src"),
         }
     }
 }

@@ -174,8 +174,7 @@ impl NewArgs {
 
         options.insert(
             KnownOptionName::Uris,
-            &self
-                .uris
+            self.uris
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
